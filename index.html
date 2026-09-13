@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weekplan — your week, planned</title>
+<style>
+  :root{
+    --bg:#FAFAF7;
+    --bg-soft:#F1EFE8;
+    --surface:#FFFFFF;
+    --text:#23241F;
+    --text-soft:#5B5A52;
+    --border:#DEDBD1;
+    --accent:#2F5D50;
+    --accent-text:#2F5D50;
+    --accent-soft:#E4ECE9;
+    --on-accent:#FFFFFF;
+    --ochre:#C77B3B; --ochre-dim:#F6E9DC;
+    --brick:#B3452C; --brick-dim:#F5E2DC;
+    --slate:#3F5C76; --slate-dim:#E1E7EC;
+    --olive:#6B7A3A; --olive-dim:#EBEEDD;
+    --plum:#8B5A83; --plum-dim:#EFE2ED;
+    --grey:#9C978A; --grey-dim:#EEECE6;
+    --buffer:#DAD6C9;
+    --shadow:0 1px 2px rgba(30,28,20,.05), 0 6px 16px rgba(30,28,20,.05);
+    --shadow-lg:0 12px 32px rgba(20,18,12,.22);
+    --radius:6px;
+    --radius-sm:3px;
+    --font-head:"Fraunces","Iowan Old Style","Palatino Linotype",Georgia,serif;
+    --font-body:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
+  }
+  :root[data-theme="dark"]{
+    --bg:#1A1B17;
+    --bg-soft:#222319;
+    --surface:#242519;
+    --text:#EEEAE0;
+    --text-soft:#A6A290;
+    --border:#3B3C31;
+    --accent:#4C8571;
+    --accent-text:#8FCDB8;
+    --accent-soft:#20332C;
+    --on-accent:#0F1410;
+    --ochre:#D89159; --ochre-dim:#3A2C1B;
+    --brick:#D97E63; --brick-dim:#3B241D;
+    --slate:#7FA3C4; --slate-dim:#212D38;
+    --olive:#A6B96C; --olive-dim:#26301A;
+    --plum:#CB9BC2; --plum-dim:#312433;
+    --grey:#9C978A; --grey-dim:#2A2B23;
+    --buffer:#3B3A30;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25);
+    --shadow-lg:0 16px 40px rgba(0,0,0,.5);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-body);}
+  body{min-height:100vh;transition:background .15s ease,color .15s ease;}
+  h1,h2,h3{font-family:var(--font-head);font-weight:600;margin:0 0 .3em 0;}
+  button{font-family:var(--font-body);cursor:pointer;}
+  input,select,textarea{font-family:var(--font-body);}
+  ::selection{background:var(--accent-soft);}
+  .app{display:flex;min-height:100vh;}
+
+  /* --- nav rail --- */
+  .rail{
+    width:158px;flex:none;border-right:1px solid var(--border);
+    padding:22px 12px;display:flex;flex-direction:column;gap:4px;background:var(--bg);
+  }
+  .rail .brand{font-family:var(--font-head);font-size:1.3rem;padding:0 6px 22px 6px;line-height:1.15;display:flex;align-items:center;gap:8px;}
+  .rail .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex:none;}
+  .rail button.nav-item{
+    text-align:left;background:none;border:none;padding:9px 10px;border-radius:var(--radius-sm);
+    color:var(--text-soft);font-size:.92rem;display:flex;align-items:center;gap:9px;
+  }
+  .rail button.nav-item .ic{width:16px;text-align:center;font-size:.95rem;opacity:.85;}
+  .rail button.nav-item.active{background:var(--accent-soft);color:var(--accent-text);font-weight:600;}
+  .rail button.nav-item:hover:not(.active){background:var(--bg-soft);}
+  .rail .spacer{flex:1;}
+  .rail .hint{font-size:.72rem;color:var(--text-soft);padding:0 10px;line-height:1.45;margin-bottom:12px;}
+
+  .theme-toggle{
+    display:flex;align-items:center;justify-content:space-between;gap:6px;
+    border:1px solid var(--border);border-radius:20px;padding:4px 4px 4px 12px;margin:0 2px 14px 2px;
+    font-size:.74rem;color:var(--text-soft);background:var(--bg-soft);
+  }
+  .theme-toggle button{
+    border:none;background:var(--surface);width:26px;height:22px;border-radius:14px;
+    box-shadow:var(--shadow);font-size:.78rem;display:flex;align-items:center;justify-content:center;color:var(--text);
+  }
+
+  main{flex:1;min-width:0;padding:26px 32px 60px;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .topbar{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap;}
+  .topbar h1{font-size:1.55rem;}
+  .topbar .sub{color:var(--text-soft);font-size:.88rem;}
+  .btn{border:1px solid var(--accent);background:var(--accent);color:var(--on-accent);padding:8px 15px;border-radius:var(--radius-sm);font-size:.85rem;font-weight:600;}
+  .btn:hover{filter:brightness(1.06);}
+  .btn.secondary{background:var(--surface);color:var(--text);border-color:var(--border);font-weight:500;}
+  .btn.secondary:hover{border-color:var(--accent);color:var(--accent-text);filter:none;}
+  .btn.warn{background:var(--brick);border-color:var(--brick);color:#fff;}
+  .btn:disabled{opacity:.45;cursor:not-allowed;}
+
+  /* --- schedule layout --- */
+  .cal-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow);}
+  .cal-grid{display:grid;grid-template-columns:52px repeat(7,minmax(108px,1fr));min-width:820px;}
+  .cal-head{padding:9px 6px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);font-size:.78rem;color:var(--text-soft);text-align:center;background:var(--bg-soft);position:sticky;top:0;}
+  .cal-head.today{color:var(--accent-text);font-weight:700;}
+  .cal-corner{background:var(--bg-soft);border-bottom:1px solid var(--border);}
+  .cal-times{position:relative;}
+  .cal-times .tick{position:absolute;right:6px;transform:translateY(-50%);font-size:.68rem;color:var(--text-soft);}
+  .cal-col{position:relative;border-left:1px solid var(--border);background-image:repeating-linear-gradient(to bottom, transparent, transparent calc(var(--hourpx) - 1px), var(--border) calc(var(--hourpx) - 1px), var(--border) var(--hourpx));}
+  .cal-event{position:absolute;left:3px;right:3px;border-radius:var(--radius-sm);padding:3px 6px;font-size:.72rem;line-height:1.25;overflow:hidden;color:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);}
+  .cal-event .t{font-weight:600;display:block;}
+  .cal-event .time{opacity:.88;font-size:.66rem;}
+  .cal-event.skipped{opacity:.35;text-decoration:line-through;}
+  .cal-event button.rm{position:absolute;top:1px;right:2px;background:none;border:none;color:#fff;opacity:.75;font-size:.72rem;padding:0 3px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;font-size:.76rem;color:var(--text-soft);}
+  .legend span{display:inline-flex;align-items:center;gap:5px;}
+  .legend i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+
+  .unsched{margin-top:12px;padding:10px 12px;background:var(--brick-dim);border-radius:var(--radius-sm);font-size:.82rem;color:var(--brick);}
+
+  /* --- floating chat --- */
+  .chat-fab{
+    position:fixed;bottom:24px;right:24px;width:54px;height:54px;border-radius:50%;
+    background:var(--accent);color:var(--on-accent);border:none;font-size:1.4rem;box-shadow:var(--shadow-lg);z-index:60;
+  }
+  .chat-fab:hover{filter:brightness(1.08);}
+  .chat-drawer{
+    position:fixed;bottom:90px;right:24px;width:330px;max-width:calc(100vw - 32px);height:min(560px, calc(100vh - 130px));
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow-lg);
+    display:flex;flex-direction:column;z-index:59;transform-origin:bottom right;
+    transition:transform .16s ease, opacity .16s ease; overflow:hidden;
+  }
+  .chat-drawer.closed{transform:scale(.92) translateY(8px);opacity:0;pointer-events:none;}
+  .chat-head{padding:12px 8px 12px 16px;border-bottom:1px solid var(--border);font-size:.86rem;font-weight:600;display:flex;align-items:center;justify-content:space-between;background:var(--bg-soft);}
+  .chat-head .sub-line{display:block;font-weight:400;font-size:.72rem;color:var(--text-soft);margin-top:2px;}
+  .chat-close{background:none;border:none;font-size:1.1rem;color:var(--text-soft);padding:2px 8px;}
+  .chat-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+  .msg{font-size:.82rem;line-height:1.4;padding:8px 10px;border-radius:var(--radius-sm);max-width:92%;}
+  .msg.user{align-self:flex-end;background:var(--accent);color:var(--on-accent);}
+  .msg.assistant{align-self:flex-start;background:var(--bg-soft);border:1px solid var(--border);color:var(--text);}
+  .chat-input{display:flex;border-top:1px solid var(--border);}
+  .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:44px;color:var(--text);}
+  .chat-input textarea::placeholder{color:var(--text-soft);}
+  .chat-input button{border:none;background:none;color:var(--accent-text);font-weight:600;padding:0 14px;font-size:.84rem;}
+  .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-size:.7rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:4px 9px;color:var(--text-soft);}
+  .chip:hover{border-color:var(--accent);color:var(--accent-text);}
+
+  /* --- forms / setup --- */
+  .card{border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:18px;background:var(--surface);box-shadow:var(--shadow);}
+  .card h3{font-size:1rem;margin-bottom:12px;}
+  .card h3 .count{color:var(--text-soft);font-weight:400;font-size:.82rem;}
+  .grid-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:10px;}
+  label{display:block;font-size:.74rem;color:var(--text-soft);margin-bottom:4px;}
+  input[type=text],input[type=number],input[type=time],input[type=date],select,textarea{
+    width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:.85rem;background:var(--bg);color:var(--text);
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .row-item{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--bg-soft);font-size:.85rem;gap:10px;}
+  .row-item:last-child{border-bottom:none;}
+  .row-item .meta{color:var(--text-soft);font-size:.78rem;}
+  .row-item .del{background:none;border:none;color:var(--brick);font-size:.78rem;white-space:nowrap;}
+  .swatch{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:7px;}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  @media (max-width:900px){
+    .two-col{grid-template-columns:1fr;}
+    .rail{width:64px;padding:16px 8px;}
+    .rail .brand span:last-child, .rail button.nav-item span.label, .rail .hint, .theme-toggle span{display:none;}
+    .rail button.nav-item{justify-content:center;}
+    .theme-toggle{justify-content:center;padding:6px;}
+    main{padding:20px 16px 60px;}
+    .chat-drawer{right:12px;bottom:82px;}
+    .chat-fab{right:16px;bottom:16px;}
+  }
+
+  /* --- budget --- */
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;}
+  .stat{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;min-width:140px;background:var(--surface);box-shadow:var(--shadow);}
+  .stat .num{font-family:var(--font-head);font-size:1.6rem;}
+  .stat .lbl{font-size:.74rem;color:var(--text-soft);}
+  .bar-row{display:grid;grid-template-columns:120px 1fr auto;gap:10px;align-items:center;font-size:.82rem;margin-bottom:9px;}
+  .bar-track{height:9px;background:var(--bg-soft);border-radius:5px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--accent);}
+  .bar-fill.over{background:var(--brick);}
+  .recommend{background:var(--accent-soft);border-radius:var(--radius-sm);padding:10px 12px;font-size:.82rem;margin-bottom:8px;color:var(--accent-text);}
+  .recommend.warn{background:var(--brick-dim);color:var(--brick);}
+
+  .foot-note{font-size:.75rem;color:var(--text-soft);margin-top:22px;line-height:1.5;}
+  .foot-note a{color:var(--accent-text);}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="rail">
+    <div class="brand"><span class="dot"></span><span>Weekplan</span></div>
+    <button class="nav-item active" data-view="schedule"><span class="ic">◧</span><span class="label">Schedule</span></button>
+    <button class="nav-item" data-view="setup"><span class="ic">✎</span><span class="label">Setup</span></button>
+    <button class="nav-item" data-view="budget"><span class="ic">◒</span><span class="label">Budget</span></button>
+    <button class="nav-item" data-view="settings"><span class="ic">⚙</span><span class="label">Settings</span></button>
+    <div class="spacer"></div>
+    <div class="theme-toggle">
+      <span>Dark mode</span>
+      <button id="themeToggle">☀</button>
+    </div>
+    <div class="hint">All your data stays on this computer, in this browser.</div>
+  </nav>
+
+  <main>
+
+    <!-- SCHEDULE VIEW -->
+    <section class="view active" id="view-schedule">
+      <div class="topbar">
+        <div>
+          <h1>This week</h1>
+          <div class="sub" id="weekSummary"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn secondary" id="regenBtn">Regenerate schedule</button>
+        </div>
+      </div>
+      <div class="cal-wrap"><div id="calGrid" class="cal-grid"></div></div>
+      <div class="legend" id="legend"></div>
+      <div id="unschedBox"></div>
+    </section>
+
+    <!-- SETUP VIEW -->
+    <section class="view" id="view-setup">
+      <div class="topbar"><h1>Setup</h1></div>
+
+      <div class="card">
+        <h3>Daily rhythm</h3>
+        <div class="grid-form">
+          <div><label>Wake up</label><input type="time" id="s_wake"></div>
+          <div><label>Asleep by</label><input type="time" id="s_sleep"></div>
+          <div><label>Time to get ready (min)</label><input type="number" id="s_ready" min="0" step="5"></div>
+          <div><label>Default commute time (min)</label><input type="number" id="s_commute" min="0" step="5"></div>
+        </div>
+        <button class="btn secondary" id="saveRhythm">Save</button>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h3>Fixed commitments <span class="count" id="fixedCount"></span></h3>
+          <div class="grid-form">
+            <div><label>Title</label><input type="text" id="f_title" placeholder="Chem 201"></div>
+            <div><label>Type</label>
+              <select id="f_type"><option value="class">Class</option><option value="work">Work</option><option value="workout">Workout</option><option value="other">Other fixed</option></select>
+            </div>
+            <div><label>Day</label>
+              <select id="f_day"><option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option></select>
+            </div>
+            <div><label>Start</label><input type="time" id="f_start"></div>
+            <div><label>End</label><input type="time" id="f_end"></div>
+            <div><label>Needs commute?</label><select id="f_needscommute"><option value="0">No</option><option value="1">Yes</option></select></div>
+          </div>
+          <button class="btn secondary" id="addFixed">Add fixed block</button>
+          <div id="fixedList" style="margin-top:10px;"></div>
+        </div>
+
+        <div class="card">
+          <h3>Flexible tasks this week <span class="count" id="flexCount"></span></h3>
+          <div class="grid-form">
+            <div><label>Title</label><input type="text" id="x_title" placeholder="Study for midterm"></div>
+            <div><label>Type</label>
+              <select id="x_type"><option value="study">Study</option><option value="mealprep">Meal prep</option><option value="workout">Workout (flexible)</option><option value="outing">Outing</option><option value="hangout">Weekend hangout</option></select>
+            </div>
+            <div><label>Total hours needed / week</label><input type="number" id="x_hours" min="0.25" step="0.25" value="2"></div>
+            <div><label>Split into sessions of (min)</label><input type="number" id="x_session" min="15" step="15" value="60"></div>
+            <div><label>Preferred day (optional)</label>
+              <select id="x_day"><option value="">Any</option><option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option><option>Sat</option><option>Sun</option></select>
+            </div>
+            <div><label>Preferred time (optional)</label><input type="time" id="x_time"></div>
+            <div><label>Estimated cost ($, optional)</label><input type="number" id="x_cost" min="0" step="1"></div>
+          </div>
+          <button class="btn secondary" id="addFlex">Add task</button>
+          <div id="flexList" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <p class="foot-note">Fixed commitments and flexible tasks act as a template for "Regenerate schedule." Chat edits only change the current week — come back here to change things for good.</p>
+    </section>
+
+    <!-- BUDGET VIEW -->
+    <section class="view" id="view-budget">
+      <div class="topbar"><h1>Budget</h1></div>
+
+      <div class="card">
+        <h3>Income & goals</h3>
+        <div class="grid-form">
+          <div><label>Weekly income / allowance ($)</label><input type="number" id="b_income" min="0" step="1"></div>
+          <div><label>Savings goal (% of income)</label><input type="number" id="b_savings" min="0" max="100" step="1"></div>
+        </div>
+        <button class="btn secondary" id="saveBudget">Save</button>
+      </div>
+
+      <div class="stat-row" id="budgetStats"></div>
+
+      <div class="card">
+        <h3>Recommended split this week</h3>
+        <div id="recommendBox"></div>
+      </div>
+
+      <div class="two-col">
+        <div class="card">
+          <h3>Log an expense</h3>
+          <div class="grid-form">
+            <div><label>Date</label><input type="date" id="e_date"></div>
+            <div><label>Category</label>
+              <select id="e_cat">
+                <option>Food/Groceries</option><option>Dining out</option><option>Transport</option>
+                <option>Outings/Entertainment</option><option>Subscriptions</option><option>Shopping</option><option>Other</option>
+              </select>
+            </div>
+            <div><label>Amount ($)</label><input type="number" id="e_amount" min="0" step="0.01"></div>
+            <div><label>Note</label><input type="text" id="e_note" placeholder="optional"></div>
+          </div>
+          <button class="btn secondary" id="addExpense">Log expense</button>
+        </div>
+        <div class="card">
+          <h3>Spending by category (this week)</h3>
+          <div id="catBars"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Recent expenses <span class="count" id="expCount"></span></h3>
+        <div id="expList"></div>
+      </div>
+    </section>
+
+    <!-- SETTINGS VIEW -->
+    <section class="view" id="view-settings">
+      <div class="topbar"><h1>Settings</h1></div>
+      <div class="card">
+        <h3>Smarter chat (optional)</h3>
+        <p class="sub" style="margin-bottom:10px;">Weekplan understands common phrases on its own — no key needed. If you add your own Anthropic API key, the chat can understand more open-ended requests. This is a per-request cost billed to your own Anthropic account (not hosting), typically a fraction of a cent per message. Get a key at <a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a>.</p>
+        <div class="grid-form">
+          <div><label>Anthropic API key (stored only in this browser)</label><input type="text" id="apiKey" placeholder="sk-ant-..."></div>
+          <div><label>Model</label>
+            <select id="apiModel">
+              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (cheapest)</option>
+              <option value="claude-sonnet-5">Claude Sonnet 5</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn secondary" id="saveApiKey">Save</button>
+      </div>
+      <div class="card">
+        <h3>Your data</h3>
+        <p class="sub" style="margin-bottom:10px;">Everything lives in this browser's local storage on this computer. Export a backup before clearing your browser data, or to move to another computer.</p>
+        <button class="btn secondary" id="exportBtn">Export backup (.json)</button>
+        <label class="btn secondary" style="display:inline-block;margin-left:8px;">Import backup<input type="file" id="importFile" accept="application/json" style="display:none;"></label>
+        <button class="btn warn" id="resetBtn" style="margin-left:8px;">Reset everything</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<button id="chatFab" class="chat-fab" aria-label="Open chat">💬</button>
+<div id="chatDrawer" class="chat-drawer closed">
+  <div class="chat-head">
+    <div>Tell it what changed<span class="sub-line">Works from any tab</span></div>
+    <button class="chat-close" id="chatClose">×</button>
+  </div>
+  <div class="chat-log" id="chatLog"></div>
+  <div class="chat-suggestions">
+    <span class="chip" data-fill="I overslept by 30 minutes">overslept 30m</span>
+    <span class="chip" data-fill="I'm too tired for my workout today, skip it">skip workout</span>
+    <span class="chip" data-fill="Move study to 6pm today">move study 6pm</span>
+    <span class="chip" data-fill="Add an outing Saturday at 3pm, dinner with friends, $25">add outing</span>
+    <span class="chip" data-fill="Log $12 for coffee">log expense</span>
+  </div>
+  <div class="chat-input">
+    <textarea id="chatInput" placeholder="e.g. I overslept by 40 minutes today"></textarea>
+    <button id="chatSend">Send</button>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ constants ============ */
+var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+var TYPE_COLOR = {
+  class:'#3F5C76', work:'#C77B3B', workout:'#B3452C', study:'#2F5D50',
+  mealprep:'#6B7A3A', outing:'#8B5A83', hangout:'#8B5A83', commute:'#9C978A',
+  buffer:'#8f8c7f', other:'#5B5A52'
+};
+var TYPE_LABEL = {
+  class:'Class', work:'Work', workout:'Workout', study:'Study',
+  mealprep:'Meal prep', outing:'Outing', hangout:'Hangout', commute:'Commute',
+  buffer:'Get ready', other:'Fixed'
+};
+var STORE_KEY = 'weeklyPlannerState_v1';
+
+/* ============ state ============ */
+function defaultState(){
+  return {
+    settings:{ wake:'07:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null },
+    fixed:[],
+    flexible:[],
+    generated:[],       // this week's placed events {id,title,type,day,start,end,cost,skipped,sourceId}
+    unscheduled:[],
+    chatLog:[],
+    expenses:[],
+    budget:{ income:0, savingsPct:20 }
+  };
+}
+var state = loadState();
+
+function loadState(){
+  try{
+    var raw = localStorage.getItem(STORE_KEY);
+    if(!raw) return defaultState();
+    var parsed = JSON.parse(raw);
+    var d = defaultState();
+    return Object.assign(d, parsed, {
+      settings: Object.assign(d.settings, parsed.settings||{}),
+      budget: Object.assign(d.budget, parsed.budget||{})
+    });
+  }catch(e){ console.error('load failed', e); return defaultState(); }
+}
+function saveState(){
+  localStorage.setItem(STORE_KEY, JSON.stringify(state));
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+
+/* ============ time helpers ============ */
+function toMin(hhmm){ if(!hhmm) return null; var p=hhmm.split(':'); return (+p[0])*60+(+p[1]); }
+function toHHMM(min){
+  min = ((min%1440)+1440)%1440;
+  var h = Math.floor(min/60), m = min%60;
+  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
+}
+function fmt12(hhmm){
+  if(!hhmm) return '';
+  var m = toMin(hhmm); var h = Math.floor(m/60), mi=m%60;
+  var ap = h>=12?'pm':'am'; var h12 = h%12; if(h12===0) h12=12;
+  return h12 + (mi? ':'+(mi<10?'0':'')+mi:'') + ap;
+}
+
+/* ============ scheduler ============ */
+function mergeIntervals(list){
+  list.sort(function(a,b){return a[0]-b[0];});
+  var out=[];
+  list.forEach(function(iv){
+    if(out.length && iv[0] <= out[out.length-1][1]){
+      out[out.length-1][1] = Math.max(out[out.length-1][1], iv[1]);
+    } else out.push(iv.slice());
+  });
+  return out;
+}
+function freeFromBusy(busy, dayStart, dayEnd){
+  var merged = mergeIntervals(busy.filter(function(iv){return iv[1]>dayStart && iv[0]<dayEnd;}));
+  var free=[]; var cursor = dayStart;
+  merged.forEach(function(iv){
+    var s = Math.max(iv[0], dayStart), e = Math.min(iv[1], dayEnd);
+    if(s > cursor) free.push([cursor, s]);
+    cursor = Math.max(cursor, e);
+  });
+  if(cursor < dayEnd) free.push([cursor, dayEnd]);
+  return free;
+}
+function takeSlot(freeList, duration, preferredStart){
+  if(preferredStart != null){
+    for(var i=0;i<freeList.length;i++){
+      var iv = freeList[i];
+      if(preferredStart >= iv[0] && preferredStart+duration <= iv[1]){
+        splitOut(freeList, i, preferredStart, preferredStart+duration);
+        return [preferredStart, preferredStart+duration];
+      }
+    }
+  }
+  for(var j=0;j<freeList.length;j++){
+    var iv2 = freeList[j];
+    if(iv2[1]-iv2[0] >= duration){
+      var s = iv2[0];
+      splitOut(freeList, j, s, s+duration);
+      return [s, s+duration];
+    }
+  }
+  return null;
+}
+function splitOut(freeList, idx, s, e){
+  var iv = freeList[idx];
+  var pieces = [];
+  if(iv[0] < s) pieces.push([iv[0], s]);
+  if(e < iv[1]) pieces.push([e, iv[1]]);
+  freeList.splice.apply(freeList, [idx,1].concat(pieces));
+}
+
+function generateSchedule(){
+  var wake = toMin(state.settings.wake), sleep = toMin(state.settings.sleep);
+  if(sleep <= wake) sleep += 1440;
+  var ready = state.settings.getReadyMins||0;
+  var events = [];
+  var unscheduled = [];
+  var freeByDay = {};
+
+  DAYS.forEach(function(day){
+    var busy = [];
+    events.push({id:uid(), title:'Get ready', type:'buffer', day:day, start:toHHMM(wake), end:toHHMM(wake+ready), sourceId:null});
+    busy.push([wake, wake+ready]);
+    state.fixed.filter(function(f){return f.day===day;}).forEach(function(f){
+      var s = toMin(f.start), e = toMin(f.end);
+      events.push({id:uid(), title:f.title, type:f.type, day:day, start:f.start, end:f.end, sourceId:f.id});
+      busy.push([s,e]);
+      if(f.needsCommute){
+        var cm = state.settings.commuteMins||0;
+        events.push({id:uid(), title:'Commute', type:'commute', day:day, start:toHHMM(s-cm), end:f.start, sourceId:f.id});
+        busy.push([s-cm, s]);
+        events.push({id:uid(), title:'Commute', type:'commute', day:day, start:f.end, end:toHHMM(e+cm), sourceId:f.id});
+        busy.push([e, e+cm]);
+      }
+    });
+    freeByDay[day] = freeFromBusy(busy, wake, sleep);
+  });
+
+  function place(task, day, duration, preferredStart, label){
+    var list = freeByDay[day];
+    var slot = takeSlot(list, duration, preferredStart);
+    if(slot){
+      events.push({id:uid(), title:label||task.title, type:task.type, day:day, start:toHHMM(slot[0]), end:toHHMM(slot[1]), cost:task.cost||undefined, sourceId:task.id});
+      return true;
+    }
+    return false;
+  }
+
+  var dayCursorIdx = 0;
+  state.flexible.forEach(function(task){
+    var duration = Math.max(15, Math.round(task.session||60));
+    var totalMins = Math.round((task.hours||0)*60);
+    var sessions = Math.max(1, Math.round(totalMins/duration));
+    var pref = task.preferredDay ? [task.preferredDay] : null;
+    var prefTime = task.preferredTime ? toMin(task.preferredTime) : null;
+
+    if(task.type==='mealprep' || task.type==='outing'){
+      var days = pref || [DAYS[(4+dayCursorIdx)%7]];
+      var placedAny=false;
+      days.concat(DAYS).slice(0,7).some(function(d){
+        if(place(task, d, duration, prefTime, task.title)){ placedAny=true; return true; }
+        return false;
+      });
+      if(!placedAny) unscheduled.push(task.title+' ('+TYPE_LABEL[task.type]+') — no free slot of '+duration+'m found');
+      dayCursorIdx++;
+    } else if(task.type==='hangout'){
+      var weekendDays = pref || ['Sat','Sun'];
+      var ok = weekendDays.concat(['Sat','Sun']).some(function(d){
+        return place(task, d, duration, prefTime, task.title);
+      });
+      if(!ok) unscheduled.push(task.title+' (Hangout) — weekend is fully booked');
+    } else if(task.type==='workout'){
+      var spread = pref ? [pref[0]] : ['Mon','Wed','Fri','Tue','Thu','Sat','Sun'];
+      var placedCount=0;
+      for(var i=0;i<spread.length && placedCount<sessions;i++){
+        if(place(task, spread[i], duration, prefTime, task.title)) placedCount++;
+      }
+      for(var t=0;t<sessions-placedCount;t++) unscheduled.push(task.title+' (Workout) — only '+placedCount+' of '+sessions+' sessions fit');
+    } else if(task.type==='study'){
+      var order = pref ? [pref[0]].concat(DAYS) : ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      var placed=0;
+      for(var k=0;k<order.length && placed<sessions;k++){
+        if(place(task, order[k], duration, prefTime, task.title+' — session '+(placed+1))) placed++;
+      }
+      if(placed<sessions) unscheduled.push(task.title+' (Study) — only fit '+placed+' of '+sessions+' sessions this week');
+    }
+  });
+
+  state.generated = events;
+  state.unscheduled = unscheduled;
+  saveState();
+}
+
+/* ============ chat / command parsing ============ */
+function findEventByFuzzyTitleToday(text){
+  var lower = text.toLowerCase();
+  var candidates = state.generated.filter(function(e){ return !e.skipped; });
+  var best=null, bestScore=0;
+  candidates.forEach(function(e){
+    var words = e.title.toLowerCase().split(/\s+/);
+    var score = words.filter(function(w){ return w.length>2 && lower.indexOf(w)!==-1; }).length;
+    if(score>bestScore){ bestScore=score; best=e; }
+  });
+  return bestScore>0 ? best : null;
+}
+
+function localParse(text){
+  var lower = text.toLowerCase().trim();
+  var m;
+
+  if(/overslept|woke up late|slept in/.test(lower)){
+    m = lower.match(/(\d+)\s*(min|minute|hour|hr)/);
+    var mins = 30;
+    if(m){ mins = +m[1]; if(/hour|hr/.test(m[2])) mins*=60; }
+    var today = currentDayName();
+    var shifted = 0;
+    state.generated.filter(function(e){ return e.day===today && !e.skipped && e.type!=='class' && e.type!=='work'; })
+      .sort(function(a,b){ return toMin(a.start)-toMin(b.start); })
+      .forEach(function(e){
+        e.start = toHHMM(toMin(e.start)+mins);
+        e.end = toHHMM(toMin(e.end)+mins);
+        shifted++;
+      });
+    saveState();
+    return 'Pushed '+shifted+' flexible block(s) on '+today+' back by '+mins+' minutes. Fixed classes/work stay put — you may need to skip something if it now overlaps.';
+  }
+
+  if(/skip|cancel|too tired/.test(lower)){
+    var ev = findEventByFuzzyTitleToday(text);
+    if(ev){ ev.skipped = true; saveState(); return 'Marked "'+ev.title+'" ('+ev.day+') as skipped.'; }
+    return "I couldn't tell which event to skip — try naming it, e.g. \"skip workout today\".";
+  }
+
+  m = lower.match(/move (.+?) to (\d{1,2})(:(\d{2}))?\s*(am|pm)?/);
+  if(m){
+    var ev2 = findEventByFuzzyTitleToday(m[1]);
+    if(ev2){
+      var h = +m[2], mins2 = m[4]?+m[4]:0, ap = m[5];
+      if(ap==='pm' && h<12) h+=12;
+      if(ap==='am' && h===12) h=0;
+      var dur = toMin(ev2.end)-toMin(ev2.start);
+      ev2.start = toHHMM(h*60+mins2);
+      ev2.end = toHHMM(h*60+mins2+dur);
+      saveState();
+      return 'Moved "'+ev2.title+'" to '+fmt12(ev2.start)+'.';
+    }
+    return "I couldn't find that event on today's schedule.";
+  }
+
+  m = lower.match(/add (outing|hangout) (mon|tue|wed|thu|fri|sat|sun)\w* at (\d{1,2})(:(\d{2}))?\s*(am|pm)?,?\s*(.+?)(,\s*\$?(\d+(\.\d+)?))?$/);
+  if(m){
+    var dayMap = {mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun'};
+    var day2 = dayMap[m[2]];
+    var hh = +m[3], mm = m[5]?+m[5]:0, ap2=m[6];
+    if(ap2==='pm' && hh<12) hh+=12;
+    if(ap2==='am' && hh===12) hh=0;
+    var title2 = m[7] ? m[7].trim() : (m[1]==='outing'?'Outing':'Hangout');
+    var cost = m[9] ? +m[9] : undefined;
+    var startM = hh*60+mm;
+    state.generated.push({id:uid(), title:title2, type:m[1], day:day2, start:toHHMM(startM), end:toHHMM(startM+90), cost:cost, sourceId:null});
+    saveState();
+    return 'Added "'+title2+'" on '+day2+' at '+fmt12(toHHMM(startM))+(cost?' ($'+cost+')':'')+'.';
+  }
+
+  m = lower.match(/(add expense|spent|log)\s*\$?(\d+(\.\d+)?)\s*(for|on)?\s*(.*)/);
+  if(m){
+    var amt = +m[2];
+    var note = (m[5]||'').trim();
+    state.expenses.push({id:uid(), date: new Date().toISOString().slice(0,10), category:'Other', amount:amt, note:note});
+    saveState();
+    return 'Logged $'+amt.toFixed(2)+(note?' for '+note:'')+'. You can fix the category on the Budget tab.';
+  }
+
+  if(/regenerate|redo|start over/.test(lower)){
+    generateSchedule();
+    return 'Regenerated this week\'s schedule from your fixed commitments and tasks.';
+  }
+
+  return null;
+}
+
+function currentDayName(){
+  var idx = new Date().getDay();
+  return DAYS[(idx+6)%7];
+}
+
+function sendChat(){
+  var input = document.getElementById('chatInput');
+  var text = input.value.trim();
+  if(!text) return;
+  state.chatLog.push({role:'user', text:text});
+  input.value = '';
+  renderChat();
+
+  var handled = localParse(text);
+  if(handled !== null){
+    state.chatLog.push({role:'assistant', text:handled});
+    saveState(); renderChat(); renderCalendar(); renderUnscheduled(); renderBudget();
+    return;
+  }
+
+  if(state.settings.apiKey){
+    state.chatLog.push({role:'assistant', text:'Thinking…'});
+    renderChat();
+    callClaude(text).then(function(reply){
+      state.chatLog[state.chatLog.length-1] = {role:'assistant', text: reply};
+      saveState(); renderChat(); renderCalendar(); renderUnscheduled(); renderBudget();
+    }).catch(function(err){
+      state.chatLog[state.chatLog.length-1] = {role:'assistant', text: 'Could not reach the API (' + err.message + '). Try a simpler phrasing, e.g. "skip workout today" or "move study to 6pm".'};
+      saveState(); renderChat();
+    });
+  } else {
+    var msg = 'I didn\'t recognize that. Try things like "I overslept by 30 minutes", "skip workout today", "move study to 6pm", or "add outing Saturday at 3pm, dinner, $25". Add an API key in Settings for more flexible phrasing.';
+    state.chatLog.push({role:'assistant', text: msg});
+    saveState(); renderChat();
+  }
+}
+
+function callClaude(userText){
+  var schema = 'Return ONLY minified JSON, no prose, matching: '+
+    '{"reply": string, "actions": [ {"op":"skip"|"move"|"add"|"remove"|"regenerate", "eventTitleMatch"?: string, "day"?: "Mon".."Sun", "start"?: "HH:MM", "end"?: "HH:MM", "title"?: string, "type"?: "class"|"work"|"workout"|"study"|"mealprep"|"outing"|"hangout"|"other", "cost"?: number } ] }';
+  var weekSummary = state.generated.map(function(e){ return e.day+' '+e.start+'-'+e.end+' '+e.title+(e.skipped?' (skipped)':''); }).join('; ');
+  var sys = 'You are a scheduling assistant for a personal weekly planner app. The user will describe a change to their week. '+
+    'Current week events: '+weekSummary+'. Days run Mon..Sun. '+schema;
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'content-type':'application/json',
+      'x-api-key': state.settings.apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body: JSON.stringify({
+      model: state.settings.apiModel || 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      system: sys,
+      messages:[{role:'user', content:userText}]
+    })
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+' '+t.slice(0,120)); });
+    return r.json();
+  }).then(function(data){
+    var textOut = (data.content||[]).map(function(c){return c.text||'';}).join('');
+    var clean = textOut.replace(/```json|```/g,'').trim();
+    var parsed;
+    try{ parsed = JSON.parse(clean); }catch(e){ return textOut || 'Got a response I could not parse.'; }
+    applyActions(parsed.actions||[]);
+    return parsed.reply || 'Done.';
+  });
+}
+
+function applyActions(actions){
+  actions.forEach(function(a){
+    if(a.op==='regenerate'){ generateSchedule(); return; }
+    if(a.op==='skip' || a.op==='remove'){
+      var ev = findEventByFuzzyTitleToday(a.eventTitleMatch||'');
+      if(ev){ if(a.op==='skip') ev.skipped=true; else state.generated = state.generated.filter(function(x){return x.id!==ev.id;}); }
+    } else if(a.op==='move'){
+      var ev2 = findEventByFuzzyTitleToday(a.eventTitleMatch||'');
+      if(ev2 && a.start){
+        var dur = toMin(ev2.end)-toMin(ev2.start);
+        ev2.start = a.start; ev2.end = toHHMM(toMin(a.start)+dur);
+        if(a.day) ev2.day = a.day;
+      }
+    } else if(a.op==='add'){
+      state.generated.push({id:uid(), title:a.title||'Untitled', type:a.type||'other', day:a.day||currentDayName(), start:a.start||'18:00', end:a.end||toHHMM(toMin(a.start||'18:00')+60), cost:a.cost, sourceId:null});
+    }
+  });
+  saveState();
+}
+
+/* ============ rendering ============ */
+function switchView(name){
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.rail button.nav-item').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-view')===name);
+  });
+  if(name==='budget') renderBudget();
+}
+
+function renderCalendar(){
+  var wake = toMin(state.settings.wake), sleep = toMin(state.settings.sleep);
+  if(sleep<=wake) sleep += 1440;
+  var viewStart = Math.min(wake, 6*60); viewStart = Math.floor(viewStart/60)*60;
+  var viewEnd = Math.max(sleep, 24*60);
+  var allEnds = state.generated.map(function(e){ var e2=toMin(e.end); return e2<toMin(e.start)?e2+1440:e2; });
+  if(allEnds.length) viewEnd = Math.max(viewEnd, Math.max.apply(null, allEnds));
+  viewEnd = Math.ceil(viewEnd/60)*60;
+  var totalMin = viewEnd - viewStart;
+  var pxPerMin = 1.05;
+  var totalPx = totalMin*pxPerMin;
+  var hourPx = 60*pxPerMin;
+
+  var grid = document.getElementById('calGrid');
+  grid.style.setProperty('--hourpx', hourPx+'px');
+  grid.innerHTML = '';
+  grid.style.gridTemplateRows = '34px '+totalPx+'px';
+
+  var corner = document.createElement('div'); corner.className='cal-corner'; grid.appendChild(corner);
+  var today = currentDayName();
+  DAYS.forEach(function(d){
+    var h = document.createElement('div');
+    h.className = 'cal-head'+(d===today?' today':'');
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  var timesCol = document.createElement('div');
+  timesCol.className = 'cal-times';
+  timesCol.style.height = totalPx+'px';
+  for(var t=viewStart; t<=viewEnd; t+=60){
+    var tick = document.createElement('div');
+    tick.className='tick';
+    tick.style.top = ((t-viewStart)*pxPerMin)+'px';
+    tick.textContent = fmt12(toHHMM(t%1440));
+    timesCol.appendChild(tick);
+  }
+  grid.appendChild(timesCol);
+
+  DAYS.forEach(function(day){
+    var col = document.createElement('div');
+    col.className = 'cal-col';
+    col.style.height = totalPx+'px';
+    col.style.setProperty('--hourpx', hourPx+'px');
+    state.generated.filter(function(e){return e.day===day;}).forEach(function(e){
+      var s = toMin(e.start), en = toMin(e.end); if(en<=s) en+=1440;
+      var top = (s-viewStart)*pxPerMin, h = Math.max(16,(en-s)*pxPerMin);
+      var div = document.createElement('div');
+      div.className = 'cal-event'+(e.skipped?' skipped':'');
+      div.style.top = top+'px'; div.style.height = h+'px';
+      div.style.background = TYPE_COLOR[e.type]||TYPE_COLOR.other;
+      div.innerHTML = '<span class="t"></span><span class="time"></span><button class="rm" title="remove">×</button>';
+      div.querySelector('.t').textContent = e.title;
+      div.querySelector('.time').textContent = fmt12(e.start)+'–'+fmt12(e.end);
+      div.querySelector('.rm').addEventListener('click', function(){
+        state.generated = state.generated.filter(function(x){return x.id!==e.id;});
+        saveState(); renderCalendar();
+      });
+      col.appendChild(div);
+    });
+    grid.appendChild(col);
+  });
+
+  var legend = document.getElementById('legend');
+  legend.innerHTML = Object.keys(TYPE_LABEL).filter(function(k){return k!=='other';}).map(function(k){
+    return '<span><i style="background:'+TYPE_COLOR[k]+'"></i>'+TYPE_LABEL[k]+'</span>';
+  }).join('');
+
+  document.getElementById('weekSummary').textContent = state.generated.filter(function(e){return !e.skipped;}).length+' blocks scheduled · '+state.unscheduled.length+' unplaced';
+}
+
+function renderUnscheduled(){
+  var box = document.getElementById('unschedBox');
+  if(!state.unscheduled.length){ box.innerHTML=''; return; }
+  box.innerHTML = '<div class="unsched"><strong>Could not fit:</strong><br>'+state.unscheduled.map(escapeHtml).join('<br>')+'</div>';
+}
+
+function renderChat(){
+  var log = document.getElementById('chatLog');
+  log.innerHTML = state.chatLog.map(function(m){
+    return '<div class="msg '+m.role+'">'+escapeHtml(m.text)+'</div>';
+  }).join('');
+  log.scrollTop = log.scrollHeight;
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; });
+}
+
+function renderFixedList(){
+  var el = document.getElementById('fixedList');
+  document.getElementById('fixedCount').textContent = '('+state.fixed.length+')';
+  el.innerHTML = state.fixed.map(function(f){
+    return '<div class="row-item"><span><span class="swatch" style="background:'+TYPE_COLOR[f.type]+'"></span>'+escapeHtml(f.title)+
+      ' <span class="meta">'+f.day+' '+fmt12(f.start)+'–'+fmt12(f.end)+(f.needsCommute?' · commute':'')+'</span></span>'+
+      '<button class="del" data-id="'+f.id+'">Remove</button></div>';
+  }).join('') || '<p class="sub">Nothing yet — add classes, work shifts, or fixed workouts above.</p>';
+  el.querySelectorAll('.del').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.fixed = state.fixed.filter(function(f){return f.id!==b.getAttribute('data-id');});
+      saveState(); renderFixedList();
+    });
+  });
+}
+function renderFlexList(){
+  var el = document.getElementById('flexList');
+  document.getElementById('flexCount').textContent = '('+state.flexible.length+')';
+  el.innerHTML = state.flexible.map(function(f){
+    return '<div class="row-item"><span><span class="swatch" style="background:'+TYPE_COLOR[f.type]+'"></span>'+escapeHtml(f.title)+
+      ' <span class="meta">'+TYPE_LABEL[f.type]+' · '+f.hours+'h/wk'+(f.preferredDay?' · '+f.preferredDay:'')+(f.cost?' · $'+f.cost:'')+'</span></span>'+
+      '<button class="del" data-id="'+f.id+'">Remove</button></div>';
+  }).join('') || '<p class="sub">Add study blocks, meal prep, outings, or hangouts you want fit in this week.</p>';
+  el.querySelectorAll('.del').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.flexible = state.flexible.filter(function(f){return f.id!==b.getAttribute('data-id');});
+      saveState(); renderFlexList();
+    });
+  });
+}
+
+/* ---- budget rendering ---- */
+function weekRangeForDate(d){
+  var dt = new Date(d+'T00:00:00');
+  var day = (dt.getDay()+6)%7;
+  var monday = new Date(dt); monday.setDate(dt.getDate()-day);
+  var sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  return [monday.toISOString().slice(0,10), sunday.toISOString().slice(0,10)];
+}
+function isoWeekKey(d){
+  var r = weekRangeForDate(d); return r[0];
+}
+function thisWeekKey(){ return isoWeekKey(new Date().toISOString().slice(0,10)); }
+
+function renderBudget(){
+  document.getElementById('b_income').value = state.budget.income||'';
+  document.getElementById('b_savings').value = state.budget.savingsPct||'';
+
+  var expenses = state.expenses;
+  var wkKey = thisWeekKey();
+  var thisWeekExp = expenses.filter(function(e){ return isoWeekKey(e.date)===wkKey; });
+  var totalThisWeek = thisWeekExp.reduce(function(s,e){return s+e.amount;},0);
+
+  var byWeek = {};
+  expenses.forEach(function(e){ var k=isoWeekKey(e.date); byWeek[k]=byWeek[k]||[]; byWeek[k].push(e); });
+  var weekKeys = Object.keys(byWeek).sort();
+  var priorWeeks = weekKeys.filter(function(k){return k!==wkKey;}).slice(-8);
+
+  var stats = document.getElementById('budgetStats');
+  var income = +state.budget.income||0;
+  var remaining = income - totalThisWeek;
+  stats.innerHTML =
+    stat(income?('$'+income.toFixed(0)):'—','Weekly income') +
+    stat('$'+totalThisWeek.toFixed(2), 'Spent this week') +
+    stat(income? ('$'+remaining.toFixed(2)) : '—', remaining<0 && income? 'Over by' : 'Remaining');
+
+  function stat(num,lbl){ return '<div class="stat"><div class="num">'+num+'</div><div class="lbl">'+lbl+'</div></div>'; }
+
+  var cats = {};
+  thisWeekExp.forEach(function(e){ cats[e.category]=(cats[e.category]||0)+e.amount; });
+  var catBars = document.getElementById('catBars');
+  var catKeys = Object.keys(cats);
+  if(!catKeys.length){ catBars.innerHTML = '<p class="sub">No expenses logged yet this week.</p>'; }
+  else {
+    var maxV = Math.max.apply(null, catKeys.map(function(k){return cats[k];}));
+    catBars.innerHTML = catKeys.sort(function(a,b){return cats[b]-cats[a];}).map(function(k){
+      var pct = Math.round((cats[k]/maxV)*100);
+      return '<div class="bar-row"><span>'+k+'</span><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%"></div></div><span>$'+cats[k].toFixed(2)+'</span></div>';
+    }).join('');
+  }
+
+  var recBox = document.getElementById('recommendBox');
+  var lines = [];
+  if(priorWeeks.length < 2){
+    if(income>0){
+      var savingsPct = +state.budget.savingsPct||20;
+      var savingsAmt = income*savingsPct/100;
+      var spendable = income - savingsAmt;
+      lines.push('<div class="recommend">Not much spending history yet, so here\'s a starting split based on your income: save $'+savingsAmt.toFixed(0)+
+        ' ('+savingsPct+'%), and roughly $'+(spendable*0.45).toFixed(0)+' for food/transport (needs), $'+(spendable*0.55).toFixed(0)+' for outings and everything else (wants). Log a few weeks of expenses and this will get more specific to you.</div>');
+    } else {
+      lines.push('<div class="recommend">Add your weekly income above, or log a couple of weeks of expenses, and Weekplan will suggest a personalized budget.</div>');
+    }
+  } else {
+    var catTotals = {}; var catWeekCounts = {};
+    priorWeeks.forEach(function(wk){
+      var seenCats = {};
+      byWeek[wk].forEach(function(e){
+        catTotals[e.category] = (catTotals[e.category]||0)+e.amount;
+        seenCats[e.category]=true;
+      });
+      Object.keys(seenCats).forEach(function(c){ catWeekCounts[c]=(catWeekCounts[c]||0)+1; });
+    });
+    var avg = {};
+    Object.keys(catTotals).forEach(function(c){ avg[c] = catTotals[c]/priorWeeks.length; });
+
+    Object.keys(avg).forEach(function(c){
+      var recommended = avg[c];
+      var actual = cats[c]||0;
+      if(recommended>0 && actual > recommended*1.2){
+        var overPct = Math.round((actual/recommended-1)*100);
+        lines.push('<div class="recommend warn">'+c+': you\'re at $'+actual.toFixed(2)+' this week, '+overPct+'% above your usual $'+recommended.toFixed(2)+'. Consider capping '+c.toLowerCase()+' near $'+recommended.toFixed(0)+' for the rest of the week.</div>');
+      } else {
+        lines.push('<div class="recommend">'+c+': suggested weekly budget ~$'+recommended.toFixed(0)+', based on your last '+catWeekCounts[c]+' week(s). You\'re at $'+actual.toFixed(2)+' so far.</div>');
+      }
+    });
+    if(income>0){
+      var totalAvg = Object.keys(avg).reduce(function(s,c){return s+avg[c];},0);
+      var impliedSavings = income-totalAvg;
+      lines.push('<div class="recommend">At this pace you\'d have roughly $'+impliedSavings.toFixed(0)+'/week left toward savings, versus your '+(state.budget.savingsPct||20)+'% goal ($'+(income*(+state.budget.savingsPct||20)/100).toFixed(0)+').</div>');
+    }
+  }
+  recBox.innerHTML = lines.join('');
+
+  document.getElementById('expCount').textContent = '('+expenses.length+')';
+  var listEl = document.getElementById('expList');
+  var recent = expenses.slice().sort(function(a,b){return b.date.localeCompare(a.date);}).slice(0,25);
+  listEl.innerHTML = recent.map(function(e){
+    return '<div class="row-item"><span>'+e.date+' · '+e.category+(e.note?' · '+escapeHtml(e.note):'')+'</span><span>$'+e.amount.toFixed(2)+' <button class="del" data-id="'+e.id+'">Remove</button></span></div>';
+  }).join('') || '<p class="sub">No expenses logged yet.</p>';
+  listEl.querySelectorAll('.del').forEach(function(b){
+    b.addEventListener('click', function(){
+      state.expenses = state.expenses.filter(function(e){return e.id!==b.getAttribute('data-id');});
+      saveState(); renderBudget();
+    });
+  });
+}
+
+/* ============ theme ============ */
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeToggle').textContent = theme==='dark' ? '☾' : '☀';
+}
+function toggleTheme(){
+  var cur = document.documentElement.getAttribute('data-theme')==='dark' ? 'dark' : 'light';
+  var next = cur==='dark' ? 'light' : 'dark';
+  state.settings.theme = next;
+  saveState();
+  applyTheme(next);
+}
+
+/* ============ chat drawer ============ */
+function openChat(){ document.getElementById('chatDrawer').classList.remove('closed'); document.getElementById('chatInput').focus(); }
+function closeChat(){ document.getElementById('chatDrawer').classList.add('closed'); }
+function toggleChat(){
+  var d = document.getElementById('chatDrawer');
+  if(d.classList.contains('closed')) openChat(); else closeChat();
+}
+
+/* ============ wiring ============ */
+document.querySelectorAll('.rail button.nav-item').forEach(function(b){
+  b.addEventListener('click', function(){ switchView(b.getAttribute('data-view')); });
+});
+
+document.getElementById('regenBtn').addEventListener('click', function(){
+  generateSchedule(); renderCalendar(); renderUnscheduled();
+});
+document.getElementById('chatFab').addEventListener('click', toggleChat);
+document.getElementById('chatClose').addEventListener('click', closeChat);
+document.getElementById('chatSend').addEventListener('click', sendChat);
+document.getElementById('chatInput').addEventListener('keydown', function(e){
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
+});
+document.querySelectorAll('.chip').forEach(function(c){
+  c.addEventListener('click', function(){
+    document.getElementById('chatInput').value = c.getAttribute('data-fill');
+    document.getElementById('chatInput').focus();
+  });
+});
+document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+document.getElementById('saveRhythm').addEventListener('click', function(){
+  state.settings.wake = document.getElementById('s_wake').value || state.settings.wake;
+  state.settings.sleep = document.getElementById('s_sleep').value || state.settings.sleep;
+  state.settings.getReadyMins = +document.getElementById('s_ready').value || 0;
+  state.settings.commuteMins = +document.getElementById('s_commute').value || 0;
+  saveState();
+  generateSchedule(); renderCalendar(); renderUnscheduled();
+});
+
+document.getElementById('addFixed').addEventListener('click', function(){
+  var title = document.getElementById('f_title').value.trim();
+  var start = document.getElementById('f_start').value, end = document.getElementById('f_end').value;
+  if(!title || !start || !end) return;
+  state.fixed.push({
+    id: uid(), title:title, type: document.getElementById('f_type').value,
+    day: document.getElementById('f_day').value, start:start, end:end,
+    needsCommute: document.getElementById('f_needscommute').value==='1'
+  });
+  document.getElementById('f_title').value='';
+  saveState(); renderFixedList();
+});
+
+document.getElementById('addFlex').addEventListener('click', function(){
+  var title = document.getElementById('x_title').value.trim();
+  if(!title) return;
+  state.flexible.push({
+    id: uid(), title:title, type: document.getElementById('x_type').value,
+    hours: +document.getElementById('x_hours').value || 1,
+    session: +document.getElementById('x_session').value || 60,
+    preferredDay: document.getElementById('x_day').value || null,
+    preferredTime: document.getElementById('x_time').value || null,
+    cost: document.getElementById('x_cost').value ? +document.getElementById('x_cost').value : undefined
+  });
+  document.getElementById('x_title').value='';
+  document.getElementById('x_cost').value='';
+  saveState(); renderFlexList();
+});
+
+document.getElementById('saveBudget').addEventListener('click', function(){
+  state.budget.income = +document.getElementById('b_income').value || 0;
+  state.budget.savingsPct = +document.getElementById('b_savings').value || 0;
+  saveState(); renderBudget();
+});
+document.getElementById('addExpense').addEventListener('click', function(){
+  var amount = +document.getElementById('e_amount').value;
+  if(!amount) return;
+  state.expenses.push({
+    id: uid(),
+    date: document.getElementById('e_date').value || new Date().toISOString().slice(0,10),
+    category: document.getElementById('e_cat').value,
+    amount: amount,
+    note: document.getElementById('e_note').value.trim()
+  });
+  document.getElementById('e_amount').value=''; document.getElementById('e_note').value='';
+  saveState(); renderBudget();
+});
+
+document.getElementById('saveApiKey').addEventListener('click', function(){
+  state.settings.apiKey = document.getElementById('apiKey').value.trim();
+  state.settings.apiModel = document.getElementById('apiModel').value;
+  saveState();
+});
+document.getElementById('exportBtn').addEventListener('click', function(){
+  var blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download='weekplan-backup.json'; a.click();
+  URL.revokeObjectURL(url);
+});
+document.getElementById('importFile').addEventListener('change', function(e){
+  var file = e.target.files[0]; if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(){
+    try{
+      var parsed = JSON.parse(reader.result);
+      state = Object.assign(defaultState(), parsed);
+      saveState(); initAll();
+    }catch(err){ alert('That file could not be read as a Weekplan backup.'); }
+  };
+  reader.readAsText(file);
+});
+document.getElementById('resetBtn').addEventListener('click', function(){
+  if(confirm('This clears everything stored in this browser. Export a backup first if you want to keep it. Continue?')){
+    localStorage.removeItem(STORE_KEY);
+    state = defaultState();
+    initAll();
+  }
+});
+
+/* ============ init ============ */
+function initAll(){
+  var theme = state.settings.theme;
+  if(!theme){
+    theme = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }
+  applyTheme(theme);
+
+  document.getElementById('s_wake').value = state.settings.wake;
+  document.getElementById('s_sleep').value = state.settings.sleep;
+  document.getElementById('s_ready').value = state.settings.getReadyMins;
+  document.getElementById('s_commute').value = state.settings.commuteMins;
+  document.getElementById('apiKey').value = state.settings.apiKey||'';
+  document.getElementById('apiModel').value = state.settings.apiModel||'claude-haiku-4-5-20251001';
+  document.getElementById('e_date').value = new Date().toISOString().slice(0,10);
+
+  if(!state.chatLog.length){
+    state.chatLog.push({role:'assistant', text:'Hi! Add your classes, work, and workouts in Setup, then hit "Regenerate schedule" on the Schedule tab. Once you have a week, just tell me things like "I overslept by 30 minutes" or "skip workout today" and I\'ll adjust it — from any tab.'});
+  }
+  if(!state.generated.length && (state.fixed.length || state.flexible.length)){
+    generateSchedule();
+  }
+
+  renderFixedList(); renderFlexList(); renderCalendar(); renderUnscheduled(); renderChat(); renderBudget();
+}
+initAll();
+
+})();
+</script>
+</body>
+</html>
