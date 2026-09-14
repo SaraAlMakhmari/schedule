@@ -61,7 +61,7 @@
   button,input,select,textarea{font-family:var(--font-body);}
   button{cursor:pointer;}
   ::selection{background:var(--accent-soft);}
-  .app{display:flex;min-height:100vh;}
+  .app{display:flex;height:100vh;overflow:hidden;}
 
   .rail{
     width:168px;flex:none;border-right:1px solid var(--border);
@@ -84,11 +84,6 @@
   .banner[hidden]{display:none !important;}
   .banner.warn{background:var(--ochre-dim);color:var(--ochre);border-color:transparent;}
   .steps{margin:0 0 12px;padding-left:18px;color:var(--text-soft);font-size:.84rem;line-height:1.55;}
-  .chat-fab{
-    position:fixed;bottom:22px;right:22px;height:48px;min-width:48px;padding:0 18px;border-radius:999px;
-    background:var(--accent);color:var(--on-accent);border:none;font-size:.92rem;font-weight:700;z-index:60;letter-spacing:.01em;
-  }
-
   .theme-toggle{
     display:flex;align-items:center;justify-content:space-between;gap:6px;
     border:1px solid var(--border);border-radius:20px;padding:4px 4px 4px 12px;margin:0 2px 10px;
@@ -96,7 +91,8 @@
   }
   .theme-toggle button{border:none;background:var(--surface);width:26px;height:22px;border-radius:14px;font-size:.78rem;color:var(--text);}
 
-  main{flex:1;min-width:0;padding:24px 28px 80px;}
+  .workspace{flex:1;display:flex;min-width:0;min-height:0;}
+  main{flex:1;min-width:0;padding:24px 28px 24px;overflow:auto;}
   .view{display:none;}
   .view.active{display:block;}
   .topbar{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;flex-wrap:wrap;}
@@ -150,24 +146,24 @@
   .month-cell .n{font-size:.78rem;font-weight:600;display:block;margin-bottom:4px;}
   .month-cell .dotline{font-size:.68rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text-soft);}
 
-  .chat-drawer{
-    position:fixed;bottom:88px;right:22px;width:360px;max-width:calc(100vw - 24px);height:min(580px, calc(100vh - 120px));
-    background:var(--surface);border:1px solid var(--border);border-radius:14px;
-    display:flex;flex-direction:column;z-index:59;overflow:hidden;
-    transition:transform .16s ease, opacity .16s ease;
+  .chat-pane{
+    width:min(400px, 36vw);flex:none;min-height:0;display:flex;flex-direction:column;
+    border-left:1px solid var(--border);background:var(--surface);
   }
-  .chat-drawer.closed{transform:scale(.94) translateY(8px);opacity:0;pointer-events:none;}
-  .chat-head{padding:12px 10px 12px 16px;border-bottom:1px solid var(--border);background:var(--bg-soft);display:flex;justify-content:space-between;align-items:center;}
+  .chat-pane.collapsed .chat-log,
+  .chat-pane.collapsed .chat-suggestions,
+  .chat-pane.collapsed .chat-input{display:none;}
+  .chat-head{padding:14px 12px 12px 16px;border-bottom:1px solid var(--border);background:var(--bg-soft);display:flex;justify-content:space-between;align-items:center;flex:none;}
   .chat-head .sub-line{display:block;font-weight:400;font-size:.72rem;color:var(--text-soft);margin-top:2px;}
-  .chat-close{background:none;border:none;font-size:1.15rem;color:var(--text-soft);padding:2px 8px;}
-  .chat-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;}
+  .chat-close{background:none;border:none;font-size:.92rem;color:var(--text-soft);padding:4px 8px;}
+  .chat-log{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0;}
   .msg{font-size:.84rem;line-height:1.4;padding:8px 10px;border-radius:var(--radius-sm);max-width:94%;}
   .msg.user{align-self:flex-end;background:var(--accent);color:var(--on-accent);}
   .msg.assistant{align-self:flex-start;background:var(--bg-soft);border:1px solid var(--border);}
-  .chat-input{display:flex;border-top:1px solid var(--border);}
-  .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:52px;color:var(--text);}
+  .chat-input{display:flex;border-top:1px solid var(--border);flex:none;}
+  .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:88px;color:var(--text);}
   .chat-input button{border:none;background:none;color:var(--accent-text);font-weight:600;padding:0 14px;}
-  .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;flex:none;}
   .chip{font-size:.7rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:4px 9px;color:var(--text-soft);}
   .chip:hover{border-color:var(--accent);color:var(--accent-text);}
 
@@ -207,8 +203,12 @@
     .rail button.nav-item{justify-content:center;padding:10px 6px;font-size:.7rem;}
     .rail button.nav-item span.label{display:block;}
     #authBtn{font-size:.65rem;padding:6px 4px;}
-    main{padding:18px 14px 88px;}
+    main{padding:18px 14px 16px;}
     .month-cell{min-height:64px;}
+    .workspace{flex-direction:column;}
+    .chat-pane{width:auto;height:42vh;border-left:none;border-top:1px solid var(--border);}
+    .chat-pane.collapsed{height:48px;}
+    .chat-input textarea{height:56px;}
   }
 </style>
 </head>
@@ -217,7 +217,6 @@
   <nav class="rail">
     <div class="brand"><span class="dot"></span><span>Weekplan</span></div>
     <button class="nav-item active" data-view="schedule"><span class="label">Schedule</span></button>
-    <button class="nav-item" data-view="setup"><span class="label">Setup</span></button>
     <button class="nav-item" data-view="budget"><span class="label">Budget</span></button>
     <button class="nav-item" data-view="settings"><span class="label">Settings</span></button>
     <div class="spacer"></div>
@@ -227,6 +226,7 @@
     <div class="hint">Free site on GitHub Pages. Sign in to sync Mac and phone.</div>
   </nav>
 
+  <div class="workspace">
   <main>
     <section class="view active" id="view-schedule">
       <div class="banner warn" id="syncBanner" hidden>
@@ -359,11 +359,15 @@
         <div style="margin-top:10px;"><button class="btn secondary" id="saveFb" type="button">Save Firebase config</button></div>
       </div>
       <div class="card">
-        <h3>Optional smarter chat</h3>
-        <p class="sub" style="margin-bottom:10px;">Weekplan already understands pasted schedules and common phrases. An Anthropic key is optional and billed to you, not hosting.</p>
+        <h3>Science Tokyo / Titech app</h3>
+        <p class="sub" style="margin-bottom:10px;">Weekplan cannot open the Titech app or log into T2SCHOLA for you — those stay on campus login. Paste your timetable or assignment list here in chat, or paste a calendar export (<code>BEGIN:VCALENDAR</code> / .ics). If LMS calendar export exists: T2SCHOLA → Calendar → Export, then paste the file text in chat. I will place classes and study blocks before due dates.</p>
+      </div>
+      <div class="card">
+        <h3>Smarter chat (optional)</h3>
+        <p class="sub" style="margin-bottom:10px;">Chat already reads rambling English without a key. For messier paragraphs, paste a free Gemini key from Google AI Studio, or an Anthropic key. Billed to you, not GitHub.</p>
         <div class="grid-form">
-          <div><label>Anthropic API key</label><input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off"></div>
-          <div><label>Model</label>
+          <div><label>Gemini or Anthropic API key</label><input type="password" id="apiKey" placeholder="AIza… or sk-ant-…" autocomplete="off"></div>
+          <div><label>Claude model (if using Anthropic)</label>
             <select id="apiModel">
               <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
               <option value="claude-sonnet-5">Claude Sonnet 5</option>
@@ -381,27 +385,24 @@
       </div>
     </section>
   </main>
-</div>
 
-<button id="chatFab" class="chat-fab" aria-label="Open chat">Ask Weekplan</button>
-<div id="chatDrawer" class="chat-drawer closed">
-  <div class="chat-head">
-    <div>Update your week<span class="sub-line">Paste a full schedule or one change</span></div>
-    <button class="chat-close" id="chatClose" type="button">×</button>
-  </div>
-  <div class="chat-log" id="chatLog"></div>
-  <div class="chat-suggestions">
-    <button class="chip" type="button" data-fill="wake 7am sleep 11pm">rhythm</button>
-    <button class="chip" type="button" data-fill="Chem 201 every Mon Wed 10am-11am commute">add class</button>
-    <button class="chip" type="button" data-fill="I overslept by 30 minutes">overslept</button>
-    <button class="chip" type="button" data-fill="I'm too tired, skip workout today">skip workout</button>
-    <button class="chip" type="button" data-fill="Move study to 6pm today">move study</button>
-    <button class="chip" type="button" data-fill="meal prep Sunday 2pm chicken rice">meal prep</button>
-    <button class="chip" type="button" data-fill="log $12 coffee">log spend</button>
-  </div>
-  <div class="chat-input">
-    <textarea id="chatInput" placeholder="Paste your week, or: overslept 30 minutes"></textarea>
-    <button id="chatSend" type="button">Send</button>
+  <aside class="chat-pane" id="chatDrawer">
+    <div class="chat-head">
+      <div>Chat<span class="sub-line">Ramble. I’ll place it on the week.</span></div>
+      <button class="chat-close" id="chatClose" type="button" aria-label="Collapse chat">–</button>
+    </div>
+    <div class="chat-log" id="chatLog"></div>
+    <div class="chat-suggestions">
+      <button class="chip" type="button" data-fill="I have Chem 201 every Monday and Wednesday 10 to 11 and I commute">class</button>
+      <button class="chip" type="button" data-fill="Quiz 3 is due Friday, I need about 3 hours to study">assignment due</button>
+      <button class="chip" type="button" data-fill="I overslept by 30 minutes, shift the flexible stuff">overslept</button>
+      <button class="chip" type="button" data-fill="I'm too tired, skip workout today">skip</button>
+    </div>
+    <div class="chat-input">
+      <textarea id="chatInput" placeholder="Tell me your classes, due dates, gym, hangouts…"></textarea>
+      <button id="chatSend" type="button">Send</button>
+    </div>
+  </aside>
   </div>
 </div>
 
@@ -440,6 +441,7 @@ function defaultState(){
     unscheduled:[],
     chatLog:[],
     expenses:[],
+    assignments:[],
     budget:{ income:0, savingsPct:20 }
   };
 }
@@ -454,7 +456,8 @@ function loadState(){
     var d = defaultState();
     var merged = Object.assign(d, parsed, {
       settings: Object.assign(d.settings, parsed.settings||{}),
-      budget: Object.assign(d.budget, parsed.budget||{})
+      budget: Object.assign(d.budget, parsed.budget||{}),
+      assignments: parsed.assignments||[]
     });
     (merged.generated||[]).forEach(function(e){
       if(!e.date && e.day) e.date = dateForDayName(e.day, weekMonday(merged.selectedDate||todayISO()));
@@ -634,6 +637,22 @@ function generateSchedule(weekMon){
     }
   });
 
+  (state.assignments||[]).forEach(function(asg){
+    if(asg.done) return;
+    var due=asg.due||'';
+    var hours=Math.max(1, +asg.hours||2);
+    var duration=60;
+    var sessions=Math.max(1, Math.round(hours*60/duration));
+    var before=DAYS.filter(function(d){ return !due || weekDates[d]<=due; });
+    if(!before.length) before=DAYS.slice();
+    var placed=0;
+    for(var a=0;a<before.length && placed<sessions;a++){
+      var label=(asg.title||'Assignment')+' — work';
+      if(place({title:label,type:'study',cost:undefined,notes:asg.course||'',id:asg.id}, before[a], duration, null, label)) placed++;
+    }
+    if(placed<sessions) unscheduled.push((asg.title||'Assignment')+' — '+placed+'/'+sessions+' study sessions before due');
+  });
+
   state.generated = state.generated.concat(events);
   state.unscheduled = unscheduled;
   saveState();
@@ -672,15 +691,23 @@ function ensureWeek(weekMon){
 
 function parseDayTokens(text){
   var found=[], lower=text.toLowerCase();
-  var map={monday:'Mon',mon:'Mon',tuesday:'Tue',tue:'Tue',wednesday:'Wed',wed:'Wed',thursday:'Thu',thu:'Thu',friday:'Fri',fri:'Fri',saturday:'Sat',sat:'Sat',sunday:'Sun',sun:'Sun',today: dayNameOf(todayISO())};
+  var map={monday:'Mon',mon:'Mon',tuesday:'Tue',tue:'Tue',wednesday:'Wed',wed:'Wed',thursday:'Thu',thu:'Thu',friday:'Fri',fri:'Fri',saturday:'Sat',sat:'Sat',sunday:'Sun',sun:'Sun',today: dayNameOf(todayISO()),tomorrow: dayNameOf(addDaysISO(todayISO(),1)), tonight: dayNameOf(todayISO())};
   Object.keys(map).forEach(function(k){
     var re=new RegExp('\\b'+k+'\\b');
     if(re.test(lower) && found.indexOf(map[k])===-1) found.push(map[k]);
   });
+  var jp=['月','火','水','木','金','土','日'];
+  jp.forEach(function(ch,i){
+    if((text.indexOf(ch+'曜')!==-1 || text.indexOf(ch+'曜日')!==-1) && found.indexOf(DAYS[i])===-1) found.push(DAYS[i]);
+  });
+  if(/\bmw\b/.test(lower)) ['Mon','Wed'].forEach(function(d){ if(found.indexOf(d)===-1) found.push(d); });
+  if(/\bmwf\b/.test(lower)) ['Mon','Wed','Fri'].forEach(function(d){ if(found.indexOf(d)===-1) found.push(d); });
   return found;
 }
 function parseClock(str){
   if(!str) return null;
+  var jp=String(str).match(/(\d{1,2})\s*時\s*(?:(\d{1,2})\s*分)?/);
+  if(jp) return toHHMM((+jp[1])*60+(jp[2]?+jp[2]:0));
   var m=String(str).toLowerCase().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
   if(!m) return null;
   var h=+m[1], mi=m[2]?+m[2]:0, ap=m[3];
@@ -690,7 +717,7 @@ function parseClock(str){
   return toHHMM(h*60+mi);
 }
 function parseRange(text){
-  var m=text.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s*(?:-|–|to)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/i);
+  var m=text.match(/(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2}\s*時(?:\s*\d{1,2}\s*分)?)\s*(?:-|–|~|〜|to|から)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?|\d{1,2}\s*時(?:\s*\d{1,2}\s*分)?)/i);
   if(!m) return null;
   return {start:parseClock(m[1]), end:parseClock(m[2])};
 }
@@ -714,6 +741,26 @@ function addFixedFromChat(title, type, days, start, end, commute, recur){
   };
   if(item.recur==='once') item.onceWeek=weekMonday(state.selectedDate);
   state.fixed.push(item);
+}
+
+function cleanTitle(text){
+  var t=String(text||'');
+  t=t.replace(/^(please |can you |could you |i want to |i need to |i have |i've got |ive got |add |put |schedule )/i,'');
+  t=t.replace(/\b(every|weekly|commute|please|thanks|thank you|for me)\b/gi,'');
+  t=t.replace(/\b(mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday|today|tomorrow|tonight)\b/gi,'');
+  t=t.replace(/\d{1,2}(?::\d{2})?\s*(am|pm)?\s*(-|–|~|to|から)\s*\d{1,2}(?::\d{2})?\s*(am|pm)?/ig,'');
+  t=t.replace(/\d{1,2}\s*時(?:\s*\d{1,2}\s*分)?\s*(?:-|–|~|〜|から)\s*\d{1,2}\s*時(?:\s*\d{1,2}\s*分)?/g,'');
+  return t.replace(/\s+/g,' ').trim();
+}
+
+function parseDueDate(text){
+  var days=parseDayTokens(text);
+  if(/due|deadline|提出/.test(text.toLowerCase()) && days.length){
+    return dateForDayName(days[days.length-1], weekMonday(state.selectedDate));
+  }
+  var m=text.match(/\b(20\d{2})-(\d{1,2})-(\d{1,2})\b/);
+  if(m) return m[1]+'-'+pad(+m[2])+'-'+pad(+m[3]);
+  return null;
 }
 
 function localParse(text){
@@ -797,20 +844,37 @@ function localParse(text){
 
   days=parseDayTokens(text);
   range=parseRange(text);
-  var recurring=/every|each week|weekly|recurring/.test(lower);
-  var commute=/commute/.test(lower);
+  var recurring=/every|each week|weekly|recurring|毎週/.test(lower);
+  var commute=/commute|通学|通勤/.test(lower);
   var type=guessType(text);
 
-  if(range && (days.length || /add |class |work |workout /.test(lower))){
-    var title=text.replace(/every|weekly|commute|add /gi,'');
-    title=title.replace(/\b(mon|monday|tue|tuesday|wed|wednesday|thu|thursday|fri|friday|sat|saturday|sun|sunday|today)\b/gi,'');
-    title=title.replace(/\d{1,2}(?::\d{2})?\s*(am|pm)?\s*(-|–|to)\s*\d{1,2}(?::\d{2})?\s*(am|pm)?/i,'');
-    title=title.replace(/\s+/g,' ').trim() || TYPE_LABEL[type];
-    if(!days.length) days=[dayNameOf(state.selectedDate)];
-    addFixedFromChat(title, type, days, range.start, range.end, commute, recurring||days.length>1?'weekly':'once');
-    generateSchedule(weekMonday(state.selectedDate));
-    return 'Added '+title+' '+days.join('/')+' '+fmt12(range.start)+'–'+fmt12(range.end)+(recurring||days.length>1?' (weekly)':'')+'.';
+  var dueNote=null;
+  if(/due|deadline|課題|提出/.test(lower) && (parseDueDate(text) || /due\s+\w+/.test(lower))){
+    var due=parseDueDate(text) || (days.length?dateForDayName(days[days.length-1], weekMonday(state.selectedDate)):null);
+    if(due){
+      var hm=lower.match(/(\d+(?:\.\d+)?)\s*(h|hr|hour)/);
+      var hours=hm?+hm[1]:2;
+      var atitle=cleanTitle(text.replace(/due\s+\w+/ig,'').replace(/ok so|i need like/ig,'')) || 'Assignment';
+      if(atitle.length>60) atitle=atitle.slice(0,57)+'…';
+      state.assignments=state.assignments||[];
+      state.assignments.push({id:uid(), title:atitle, due:due, hours:hours, course:''});
+      generateSchedule(weekMonday(due));
+      dueNote='Noted "'+atitle+'" due '+prettyDate(due)+'. I blocked ~'+hours+'h of study before then.';
+    }
   }
+
+  if(range){
+    var title=cleanTitle(text.replace(/due\s+\w+[^.]*$/i,'')) || TYPE_LABEL[type] || 'Untitled';
+    var classDays=parseDayTokens(text.replace(/due[^,]*/ig,''));
+    if(!classDays.length) classDays=days.length?days:[dayNameOf(state.selectedDate)];
+    if(/due/.test(lower) && classDays.length>1) classDays=classDays.slice(0,-1);
+    if(!classDays.length) classDays=days.length?days:[dayNameOf(state.selectedDate)];
+    addFixedFromChat(title, type==='other'?'class':type, classDays.length?classDays:days, range.start, range.end, commute, recurring||classDays.length>1?'weekly':'once');
+    generateSchedule(weekMonday(state.selectedDate));
+    var classNote='Added '+title+' '+(classDays.join('/')||days.join('/'))+' '+fmt12(range.start)+'–'+fmt12(range.end)+(recurring||(classDays.length>1)?' (weekly)':'')+'.';
+    return dueNote?classNote+'\n'+dueNote:classNote;
+  }
+  if(dueNote) return dueNote;
 
   if(/meal\s*prep|mealprep/.test(lower)){
     days=days.length?days:['Sun'];
@@ -857,12 +921,51 @@ function localParse(text){
 function parseMany(text){
   var lines=text.split(/\n+/).map(function(s){return s.trim();}).filter(Boolean);
   if(lines.length<=1) return localParse(text);
-  var notes=[];
+  var notes=[], ok=0;
   lines.forEach(function(line){
     var r=localParse(line);
-    notes.push(r||('Skipped: '+line));
+    if(r){ notes.push(r); ok++; }
   });
-  return notes.join('\n');
+  return ok?notes.join('\n'):null;
+}
+
+function importICS(raw){
+  var notes=[];
+  raw.split(/BEGIN:VEVENT/i).slice(1).forEach(function(part){
+    var sum=(part.match(/SUMMARY[^:\n]*:(.+)/i)||[])[1];
+    var ds=(part.match(/DTSTART[^:\n]*:(\d{8}T?\d*)/i)||[])[1];
+    var de=(part.match(/DTEND[^:\n]*:(\d{8}T?\d*)/i)||[])[1];
+    if(!sum||!ds) return;
+    sum=sum.replace(/\r/g,'').trim();
+    function icsStamp(s){
+      return {date:s.slice(0,4)+'-'+s.slice(4,6)+'-'+s.slice(6,8), time:s.length>=13?s.slice(9,11)+':'+s.slice(11,13):null};
+    }
+    var a=icsStamp(ds), b=de?icsStamp(de):{date:a.date,time:null};
+    if(a.time && b.time){
+      addFixedFromChat(sum, guessType(sum)==='other'?'class':guessType(sum), [dayNameOf(a.date)], a.time, b.time, false, 'once');
+      state.fixed[state.fixed.length-1].onceWeek=weekMonday(a.date);
+      notes.push('Imported '+sum+' '+a.date+' '+a.time+'-'+b.time);
+    } else {
+      state.assignments=state.assignments||[];
+      state.assignments.push({id:uid(), title:sum, due:a.date, hours:2});
+      notes.push('Due: '+sum+' on '+prettyDate(a.date));
+    }
+  });
+  if(notes.length) generateSchedule(weekMonday(state.selectedDate));
+  return notes.length?notes.join('\n'):null;
+}
+
+function rambleParse(text){
+  if(/BEGIN:VCALENDAR/i.test(text)) return importICS(text);
+  var chunks=text.split(/\n+|[.!?。]+\s+|\s+and then\s+|\s+also\s+|;\s+/i).map(function(s){return s.trim();}).filter(function(s){return s.length>2;});
+  if(chunks.length<=1) return localParse(text);
+  var notes=[], ok=0;
+  chunks.forEach(function(chunk){
+    var r=localParse(chunk);
+    if(r){ notes.push(r); ok++; }
+  });
+  if(ok) return notes.join('\n');
+  return localParse(text);
 }
 
 function findEvent(text, date){
@@ -886,8 +989,9 @@ function sendChat(){
   state.chatLog.push({role:'user', text:text});
   input.value='';
   renderChat();
-  var handled=parseMany(text);
-  if(handled!==null){
+  var handled=rambleParse(text);
+  var rambleLike=text.length>80 || / because | like | maybe | kinda | just | anyway | so i | i think /i.test(text);
+  if(handled && !(rambleLike && state.settings.apiKey)){
     state.chatLog.push({role:'assistant', text:handled});
     saveState(); refreshAll();
     return;
@@ -895,22 +999,70 @@ function sendChat(){
   if(state.settings.apiKey){
     state.chatLog.push({role:'assistant', text:'Thinking…'});
     renderChat();
-    callClaude(text).then(function(reply){
+    callPlannerLLM(text).then(function(reply){
       state.chatLog[state.chatLog.length-1]={role:'assistant', text:reply};
       saveState(); refreshAll();
     }).catch(function(err){
-      state.chatLog[state.chatLog.length-1]={role:'assistant', text:'API error ('+err.message+'). Try shorter lines like "Chem 201 Mon 10am-11am".'};
-      saveState(); renderChat();
+      var fallback=handled || ('I could not reach the language model ('+err.message+'). Try naming the class, days, and times, or paste an .ics export.');
+      state.chatLog[state.chatLog.length-1]={role:'assistant', text:fallback};
+      saveState(); refreshAll();
     });
-  } else {
-    state.chatLog.push({role:'assistant', text:'I did not recognize that. Paste one fact per line, or try "Chem 201 every Mon Wed 10am-11am commute".'});
-    saveState(); renderChat();
+    return;
   }
+  if(handled){
+    state.chatLog.push({role:'assistant', text:handled});
+    saveState(); refreshAll();
+    return;
+  }
+  state.chatLog.push({role:'assistant', text:'Tell me the class or task, which day, and a time or due date — you can ramble. Examples: "I have linear algebra every Wednesday 2 to 4 and I commute" · "lab report due Friday I need 3 hours". Or paste a calendar export from T2SCHOLA. For even looser paragraphs, add a free Gemini key in Settings.'});
+  saveState(); renderChat();
+}
+
+function plannerSchema(){
+  return 'Return ONLY minified JSON: {"reply":string,"actions":[{"op":"skip"|"move"|"add"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number}]} Times HH:MM 24h. days like Mon. Assignments use op assignment with due YYYY-MM-DD and hours to study.';
+}
+
+function weekDigest(){
+  return (state.generated||[]).map(function(e){ return (e.date||e.day)+' '+e.start+'-'+e.end+' '+e.title+(e.skipped?' skipped':''); }).join('; ');
+}
+
+function applyPlannerJSON(textOut){
+  var clean=String(textOut||'').replace(/```json|```/g,'').trim();
+  var parsed;
+  try{ parsed=JSON.parse(clean); }catch(e){
+    var m=clean.match(/\{[\s\S]*\}/);
+    if(!m) return textOut||'Could not parse.';
+    try{ parsed=JSON.parse(m[0]); }catch(e2){ return textOut||'Could not parse.'; }
+  }
+  applyActions(parsed.actions||[]);
+  return parsed.reply||'Done.';
+}
+
+function callPlannerLLM(userText){
+  var key=(state.settings.apiKey||'').trim();
+  if(key.indexOf('sk-ant')===0) return callClaude(userText);
+  return callGemini(userText);
+}
+
+function callGemini(userText){
+  var prompt='You edit a personal weekly planner for a Science Tokyo student. Current events: '+weekDigest()+'. User may ramble. Extract every class, commute, workout, hangout, and assignment. '+plannerSchema();
+  return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(state.settings.apiKey), {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({
+      contents:[{role:'user', parts:[{text:prompt+'\n\n'+userText}]}],
+      generationConfig:{responseMimeType:'application/json', maxOutputTokens:900}
+    })
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+' '+t.slice(0,120)); });
+    return r.json();
+  }).then(function(data){
+    var textOut=((((data.candidates||[])[0]||{}).content||{}).parts||[]).map(function(p){return p.text||'';}).join('');
+    return applyPlannerJSON(textOut);
+  });
 }
 
 function callClaude(userText){
-  var schema='Return ONLY minified JSON: {"reply":string,"actions":[{"op":"skip"|"move"|"add"|"remove"|"regenerate"|"rhythm"|"expense","eventTitleMatch"?:string,"day"?:string,"date"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean}]}';
-  var weekSummary=state.generated.map(function(e){ return (e.date||e.day)+' '+e.start+'-'+e.end+' '+e.title+(e.skipped?' skipped':''); }).join('; ');
   return fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{
@@ -921,8 +1073,8 @@ function callClaude(userText){
     },
     body: JSON.stringify({
       model: state.settings.apiModel || 'claude-haiku-4-5-20251001',
-      max_tokens: 700,
-      system: 'You edit a personal weekly planner. Current events: '+weekSummary+'. '+schema,
+      max_tokens: 900,
+      system: 'You edit a personal weekly planner for a Science Tokyo student. Current events: '+weekDigest()+'. '+plannerSchema(),
       messages:[{role:'user', content:userText}]
     })
   }).then(function(r){
@@ -930,11 +1082,7 @@ function callClaude(userText){
     return r.json();
   }).then(function(data){
     var textOut=(data.content||[]).map(function(c){return c.text||'';}).join('');
-    var clean=textOut.replace(/```json|```/g,'').trim();
-    var parsed;
-    try{ parsed=JSON.parse(clean); }catch(e){ return textOut||'Could not parse.'; }
-    applyActions(parsed.actions||[]);
-    return parsed.reply||'Done.';
+    return applyPlannerJSON(textOut);
   });
 }
 
@@ -944,6 +1092,11 @@ function applyActions(actions){
     if(a.op==='rhythm'){
       if(a.wake) state.settings.wake=a.wake;
       if(a.sleep) state.settings.sleep=a.sleep;
+    }
+    if(a.op==='assignment' && (a.title||a.eventTitleMatch)){
+      state.assignments=state.assignments||[];
+      state.assignments.push({id:uid(), title:a.title||a.eventTitleMatch, due:a.due||a.date, hours:+a.hours||2, course:a.note||''});
+      generateSchedule(weekMonday(a.due||a.date||state.selectedDate));
     }
     if(a.op==='expense' && a.amount){
       state.expenses.push({id:uid(), date:a.date||todayISO(), category:a.type||'Other', amount:+a.amount, note:a.note||''});
@@ -1060,8 +1213,7 @@ function renderDay(mount){
   document.getElementById('calTitle').textContent=prettyDate(date);
   var list=eventsOn(date);
   if(!list.length){
-    mount.innerHTML='<div class="empty">Nothing placed on this day. <button class="btn" type="button" id="emptyChat">Ask Weekplan</button><p style="margin:10px 0 0">Try: <code>Chem 201 every Mon Wed 10am-11am commute</code></p></div>';
-    var b=document.getElementById('emptyChat'); if(b) b.addEventListener('click', openChat);
+    mount.innerHTML='<div class="empty">Nothing on this day yet. Type in the chat on the right — classes, due dates, gym, whatever is in your head.</div>';
     return;
   }
   mount.innerHTML='<div class="day-list"></div>';
@@ -1328,10 +1480,13 @@ function updateSyncBanner(){
 }
 
 function openChat(){
-  document.getElementById('chatDrawer').classList.remove('closed');
+  var pane=document.getElementById('chatDrawer');
+  pane.classList.remove('collapsed');
   document.getElementById('chatInput').focus();
 }
-function closeChat(){ document.getElementById('chatDrawer').classList.add('closed'); }
+function closeChat(){
+  document.getElementById('chatDrawer').classList.toggle('collapsed');
+}
 
 function setSyncChip(text, cls){
   var elc=document.getElementById('syncChip');
@@ -1374,10 +1529,11 @@ function applyRemoteDoc(doc){
     return;
   }
   applyingRemote=true;
-  state=Object.assign(defaultState(), remote.state, {
-    settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
-    budget: Object.assign(defaultState().budget, (remote.state.budget||{}))
-  });
+    state=Object.assign(defaultState(), remote.state, {
+      settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
+      budget: Object.assign(defaultState().budget, (remote.state.budget||{})),
+      assignments: remote.state.assignments||[]
+    });
   persistLocal();
   applyingRemote=false;
   refreshAll();
@@ -1507,10 +1663,6 @@ document.getElementById('todayBtn').addEventListener('click', function(){
 document.getElementById('regenBtn').addEventListener('click', function(){
   generateSchedule(weekMonday(state.selectedDate)); renderCalendar(); renderUnscheduled();
 });
-document.getElementById('chatFab').addEventListener('click', function(){
-  var d=document.getElementById('chatDrawer');
-  if(d.classList.contains('closed')) openChat(); else closeChat();
-});
 document.getElementById('chatClose').addEventListener('click', closeChat);
 document.getElementById('chatSend').addEventListener('click', sendChat);
 document.getElementById('chatInput').addEventListener('keydown', function(e){
@@ -1632,7 +1784,7 @@ function initAll(){
   buildDayChecks('f_days','fday');
   fillForms();
   if(!state.chatLog.length){
-    state.chatLog.push({role:'assistant', text:'Hi — paste your week, one line per class, workout, study block, meal prep, or hangout. I will place it around commute and get-ready time. Later: "overslept 30 minutes", "skip workout today", "log $12 coffee".'});
+    state.chatLog.push({role:'assistant', text:'Hi — dump your week in this panel. Ramble is fine: classes, commute, gym, “lab report due Friday.” I will place it. You can skip Setup. I cannot read the Titech app; paste a timetable or T2SCHOLA calendar export if you have one.'});
   }
   var monday=weekMonday(state.selectedDate);
   var hasThisWeek=(state.generated||[]).some(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6); });
