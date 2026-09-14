@@ -3,61 +3,63 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#2F5D50">
+<meta name="theme-color" content="#0A0A0B">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Weekplan">
 <title>Weekplan</title>
 <link rel="manifest" href="manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#F6F4EE;
-    --bg-soft:#EDEAE1;
-    --surface:#FFFdf8;
-    --text:#1E201C;
-    --text-soft:#5E5D55;
-    --border:#D9D4C8;
-    --accent:#2C5E52;
-    --accent-text:#2C5E52;
-    --accent-soft:#DCE8E4;
-    --on-accent:#F7FBF9;
-    --ochre:#C77B3B; --ochre-dim:#F6E9DC;
-    --brick:#B3452C; --brick-dim:#F5E2DC;
-    --slate:#3F5C76; --slate-dim:#E1E7EC;
-    --olive:#6B7A3A; --olive-dim:#EBEEDD;
-    --plum:#8B5A83; --plum-dim:#EFE2ED;
-    --grey:#9C978A; --grey-dim:#EEECE6;
-    --shadow:0 1px 2px rgba(30,28,20,.04);
-    --radius:10px;
-    --radius-sm:6px;
-    --font-head:"Fraunces","Iowan Old Style",Georgia,serif;
-    --font-body:"Source Sans 3","Segoe UI",system-ui,sans-serif;
+    --bg:#ECECE8;
+    --bg-soft:#E2E2DC;
+    --surface:#F7F7F4;
+    --text:#0A0A0B;
+    --text-soft:#5C5C63;
+    --border:#C9C9C4;
+    --accent:#111113;
+    --accent-text:#111113;
+    --accent-soft:#D8D8D3;
+    --on-accent:#F4F7F0;
+    --ochre:#C45C26; --ochre-dim:#F3E4D8;
+    --brick:#C43C2C; --brick-dim:#F5DDD8;
+    --slate:#2A4A6B; --slate-dim:#DCE6EF;
+    --olive:#3D6B4F; --olive-dim:#DCE8E1;
+    --plum:#5A4A8A; --plum-dim:#E6E1F2;
+    --grey:#6B6B72; --grey-dim:#E8E8E4;
+    --shadow:0 0 0 1px rgba(10,10,11,.06);
+    --radius:4px;
+    --radius-sm:3px;
+    --font-head:"Syne","Arial Narrow",system-ui,sans-serif;
+    --font-body:"IBM Plex Sans","Helvetica Neue",system-ui,sans-serif;
+    --letter:-0.03em;
   }
   :root[data-theme="dark"]{
-    --bg:#161712;
-    --bg-soft:#1E1F18;
-    --surface:#22231B;
-    --text:#F2EEE4;
-    --text-soft:#A39E8C;
-    --border:#3A3B30;
-    --accent:#5A9A86;
-    --accent-text:#9ED4C2;
-    --accent-soft:#1C2E28;
-    --on-accent:#0C1210;
-    --ochre:#D89159; --ochre-dim:#3A2C1B;
-    --brick:#D97E63; --brick-dim:#3B241D;
-    --slate:#7FA3C4; --slate-dim:#212D38;
-    --olive:#A6B96C; --olive-dim:#26301A;
-    --plum:#CB9BC2; --plum-dim:#312433;
-    --grey:#9C978A; --grey-dim:#2A2B23;
+    --bg:#0A0A0B;
+    --bg-soft:#121214;
+    --surface:#161618;
+    --text:#F2F2F0;
+    --text-soft:#8A8A92;
+    --border:#2A2A2E;
+    --accent:#C8F542;
+    --accent-text:#C8F542;
+    --accent-soft:#1A220C;
+    --on-accent:#0A0A0B;
+    --ochre:#E07A3A; --ochre-dim:#2A1A12;
+    --brick:#E85A4A; --brick-dim:#2A1412;
+    --slate:#6A9BC4; --slate-dim:#15202A;
+    --olive:#7DDB9A; --olive-dim:#122018;
+    --plum:#A898E0; --plum-dim:#1A1628;
+    --grey:#8A8A92; --grey-dim:#1C1C1F;
     --shadow:none;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--font-body);}
   body{min-height:100vh;}
-  h1,h2,h3{font-family:var(--font-head);font-weight:600;margin:0 0 .35em;}
+  h1,h2,h3{font-family:var(--font-head);font-weight:700;letter-spacing:var(--letter);margin:0 0 .35em;}
+  .brand,.topbar h1{text-transform:uppercase;}
   button,input,select,textarea{font-family:var(--font-body);}
   button{cursor:pointer;}
   ::selection{background:var(--accent-soft);}
@@ -67,8 +69,8 @@
     width:168px;flex:none;border-right:1px solid var(--border);
     padding:22px 12px 20px;display:flex;flex-direction:column;gap:4px;background:var(--bg);
   }
-  .brand{font-family:var(--font-head);font-size:1.35rem;padding:0 8px 18px;display:flex;align-items:center;gap:8px;}
-  .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent);}
+  .brand{font-family:var(--font-head);font-size:1.15rem;letter-spacing:var(--letter);text-transform:uppercase;padding:0 8px 18px;display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:7px;height:7px;background:var(--accent);}
   .rail button.nav-item{
     text-align:left;background:none;border:none;padding:9px 10px;border-radius:var(--radius-sm);
     color:var(--text-soft);font-size:.92rem;display:flex;align-items:center;gap:8px;
@@ -118,7 +120,7 @@
   .cal-times{position:relative;}
   .cal-times .tick{position:absolute;right:6px;transform:translateY(-50%);font-size:.66rem;color:var(--text-soft);}
   .cal-col{position:relative;border-left:1px solid var(--border);background-image:repeating-linear-gradient(to bottom, transparent, transparent calc(var(--hourpx) - 1px), var(--border) calc(var(--hourpx) - 1px), var(--border) var(--hourpx));}
-  .cal-event{position:absolute;left:3px;right:3px;border-radius:5px;padding:3px 6px;font-size:.72rem;line-height:1.25;overflow:hidden;color:#fff;cursor:pointer;}
+  .cal-event{position:absolute;left:2px;right:2px;border-radius:2px;padding:4px 6px;font-size:.7rem;line-height:1.25;overflow:hidden;color:#fff;cursor:pointer;letter-spacing:.01em;}
   .cal-event .t{font-weight:600;display:block;}
   .cal-event .time{opacity:.88;font-size:.66rem;}
   .cal-event.skipped{opacity:.35;text-decoration:line-through;}
@@ -286,7 +288,7 @@
           <div class="grid-form">
             <div><label>Title</label><input type="text" id="f_title" placeholder="Chem 201"></div>
             <div><label>Type</label>
-              <select id="f_type"><option value="class">Class</option><option value="work">Work</option><option value="workout">Workout</option><option value="other">Other</option></select>
+              <select id="f_type"><option value="class">Class</option><option value="work">Work</option><option value="meeting">Meeting</option><option value="workout">Workout</option><option value="other">Other</option></select>
             </div>
             <div><label>Start</label><input type="time" id="f_start"></div>
             <div><label>End</label><input type="time" id="f_end"></div>
@@ -451,14 +453,14 @@
 
 var DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 var TYPE_COLOR = {
-  class:'#3F5C76', work:'#C77B3B', workout:'#B3452C', study:'#2F5D50',
-  mealprep:'#6B7A3A', outing:'#8B5A83', hangout:'#8B5A83', commute:'#9C978A',
-  buffer:'#8f8c7f', other:'#5B5A52'
+  class:'#2A4A6B', work:'#C45C26', workout:'#C43C2C', study:'#3D6B4F',
+  mealprep:'#4A5C32', outing:'#5A4A8A', hangout:'#5A4A8A', meeting:'#1A6B6B',
+  commute:'#6B6B72', buffer:'#8A8A86', other:'#3A3A40'
 };
 var TYPE_LABEL = {
   class:'Class', work:'Work', workout:'Workout', study:'Study',
-  mealprep:'Meal prep', outing:'Outing', hangout:'Hangout', commute:'Commute',
-  buffer:'Get ready', other:'Fixed'
+  mealprep:'Meal prep', outing:'Outing', hangout:'Hangout', meeting:'Meeting',
+  commute:'Commute', buffer:'Get ready', other:'Fixed'
 };
 var STORE_KEY = 'weeklyPlannerState_v2';
 var FB_KEY = 'weekplan_fb_config';
@@ -478,6 +480,7 @@ function defaultState(){
     expenses:[],
     assignments:[],
     pendingAsk:null,
+    lastEventId:null,
     budget:{ income:0, savingsPct:20 }
   };
 }
@@ -789,20 +792,34 @@ function dayRhythm(date){
   var evs=realEventsOn(date);
   var ready=state.settings.getReadyMins||30;
   var sleepH=state.settings.sleepHours||8;
-  if(!evs.length) return {empty:true, date:date, evs:evs, sleepH:sleepH};
+  var usualWake=toMin(state.settings.wake);
+  if(!usualWake || usualWake<=7*60) usualWake=8*60;
+  var usualSleep=toMin(state.settings.sleep)||23*60;
+  if(!evs.length) return {empty:true, date:date, evs:evs, sleepH:sleepH, wake:usualWake, sleep:usualSleep, alarm:false};
   var first=evs[0], last=evs[evs.length-1];
-  var wake=toMin(first.start)-ready;
-  if(wake<5*60) wake=5*60;
-  var sleep=toMin(last.end)+40;
-  if(sleep>23*60+45) sleep=23*60+45;
-  var nextFirst=realEventsOn(addDaysISO(date,1))[0];
-  if(nextFirst){
-    var nextWake=toMin(nextFirst.start)-ready;
-    var needSleep=nextWake-(sleepH*60);
-    if(needSleep>0 && needSleep<sleep) sleep=needSleep;
-    if(sleep<20*60) sleep=20*60;
+  function leavesHouse(e){
+    if(e.online || e.type==='meeting' || e.type==='study') return false;
+    return e.type==='class'||e.type==='work'||e.type==='outing'||e.type==='workout'||e.type==='commute'||e.type==='hangout';
   }
-  return {empty:false, date:date, evs:evs, first:first, last:last, wake:wake, sleep:sleep, sleepH:sleepH, ready:ready};
+  var firstLeave=evs.filter(leavesHouse)[0];
+  var wake=usualWake, alarm=false;
+  if(firstLeave && toMin(firstLeave.start)<=12*60+30){
+    wake=toMin(firstLeave.start)-ready;
+    if(wake<5*60) wake=5*60;
+    alarm=true;
+  }
+  var sleep=usualSleep;
+  if(toMin(last.end)>=21*60){
+    sleep=Math.max(sleep, toMin(last.end)+40);
+    if(sleep>23*60+45) sleep=23*60+45;
+  }
+  var nextLeave=realEventsOn(addDaysISO(date,1)).filter(leavesHouse)[0];
+  if(nextLeave && toMin(nextLeave.start)<=12*60+30){
+    var nextWake=toMin(nextLeave.start)-ready;
+    var needSleep=nextWake-(sleepH*60);
+    if(needSleep>=20*60 && needSleep<sleep) sleep=needSleep;
+  }
+  return {empty:false, date:date, evs:evs, first:first, last:last, wake:wake, sleep:sleep, sleepH:sleepH, ready:ready, alarm:alarm, firstLeave:firstLeave};
 }
 
 function dayBriefing(date){
@@ -811,20 +828,24 @@ function dayBriefing(date){
   var dues=(state.assignments||[]).filter(function(a){ return a.due===date && !a.done; });
   if(r.empty){
     var extra=dues.length?' Due today: '+dues.map(function(a){return a.title;}).join(', ')+'.':'';
-    return prettyDate(date)+' has no pinned events yet.'+extra+' Sleep ~'+(r.sleepH)+' hours; no class alarm needed until something is on the grid.';
+    return prettyDate(date)+' has no pinned events yet.'+extra+' Keep a normal night (~'+r.sleepH+'h).';
   }
   var lines=[];
   lines.push(prettyDate(date)+' — run of show:');
-  lines.push('Wake around '+fmt12(toHHMM(r.wake))+' ('+r.ready+' min to get ready before '+r.first.title+' at '+fmt12(r.first.start)+').');
+  if(r.alarm && r.firstLeave){
+    lines.push('Wake around '+fmt12(toHHMM(r.wake))+' so you have '+r.ready+' min before '+r.firstLeave.title+' at '+fmt12(r.firstLeave.start)+'.');
+  } else {
+    lines.push('No early alarm — first thing is '+r.first.title+' at '+fmt12(r.first.start)+(r.first.online||r.first.type==='meeting'?' (you can take it from wherever you are).':'.')+' I’d still get up around '+fmt12(toHHMM(r.wake))+' so the day doesn’t start at the meeting.');
+  }
   r.evs.filter(function(e){ return e.type!=='commute'; }).forEach(function(e){
     var bit=fmt12(e.start)+' '+e.title;
     if(e.who) bit+=' — '+e.who;
     if(e.place|| (e.detail&&e.detail.where)) bit+=' @ '+(e.place||e.detail.where);
-    if(e.online||(e.detail&&e.detail.online)) bit+=' (online)';
+    if(e.online||e.type==='meeting'||(e.detail&&e.detail.online)) bit+=' (online)';
     lines.push('• '+bit);
   });
   if(dues.length) lines.push('Due: '+dues.map(function(a){ return a.title; }).join(', ')+'.');
-  lines.push('Last block ends '+fmt12(r.last.end)+'. I’d start winding down after that and be in bed around '+fmt12(toHHMM(r.sleep))+' so you get ~'+r.sleepH+'h.');
+  lines.push('Last block ends '+fmt12(r.last.end)+'. Aim to be in bed around '+fmt12(toHHMM(r.sleep))+' (~'+r.sleepH+'h).');
   return lines.join('\n');
 }
 
@@ -851,8 +872,10 @@ function stampPrepBlocks(events, weekDates){
     var dayEvs=events.filter(function(e){ return e.date===date && !e.skipped; });
     var keepReady=(state.generated||[]).some(function(e){ return e.date===date && e.type==='buffer' && e.keep && !e.skipped; });
     if(keepReady || dayEvs.some(function(e){ return e.type==='buffer'; })) return;
-    var first=dayEvs.filter(function(e){ return e.type==='commute'||e.type==='class'||e.type==='work'||e.type==='outing'||e.type==='workout'; })
-      .sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
+    var first=dayEvs.filter(function(e){
+      if(e.online || e.type==='meeting' || e.type==='study') return false;
+      return e.type==='commute'||e.type==='class'||e.type==='work'||e.type==='outing'||e.type==='workout';
+    }).sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
     if(!first) return;
     var end=toMin(first.start);
     var start=end-ready;
@@ -931,7 +954,7 @@ function guessType(text){
   if(/meal\s*prep|mealprep|grocer/.test(l)) return 'mealprep';
   if(/hangout|friends|hang out/.test(l)) return 'hangout';
   if(/study|homework|assignment|midterm|essay|課題|レポート/.test(l)) return 'study';
-  if(/meeting|meet with|office hour/.test(l)) return 'outing';
+  if(/meeting|meet with|office hour|zoom|online call/.test(l)) return 'meeting';
   if(/outing|dinner|movie|concert|cafe|dentist|appointment|errand|shop|going |go to |headed |meet /.test(l)) return 'outing';
   if(/commute/.test(l)) return 'commute';
   return 'other';
@@ -1042,9 +1065,10 @@ function shortTitle(text, facts){
 
 function inferBlockType(text, type){
   var lower=text.toLowerCase();
+  if(/meeting|zoom|online/.test(lower) && /meet|call|mentor|advisor/.test(lower)) return 'meeting';
   if(type && type!=='other') return type;
   if(/class|lecture|lab|seminar|i have [a-z].*(every|weekly|mon|tue|wed|thu|fri)/.test(lower)) return 'class';
-  if(parsePlace(text) || /going |go to |meet |dinner|movie/.test(lower)) return 'outing';
+  if(parsePlace(text) || /going |go to |dinner|movie/.test(lower)) return 'outing';
   return 'other';
 }
 
@@ -1134,11 +1158,13 @@ function pushKeepEvent(date, start, end, title, type, notes, extra){
 
 function addTimedEventWithTravel(opts){
   var date=opts.date, start=toMin(opts.start), end=toMin(opts.end);
+  var virtual=!!opts.online || opts.type==='meeting';
   var fromPlace=opts.from==='home' ? (state.settings.homePlace||'home') : (opts.from==='campus' ? (state.settings.campusPlace||'Ookayama') : opts.from);
   var dest=opts.place||'';
   var cm=opts.commuteMins;
-  if(cm==null) cm=opts.wantCommute ? commuteBetween(fromPlace, dest) : 0;
-  var ready=opts.wantReady ? (state.settings.getReadyMins||30) : 0;
+  if(virtual) cm=0;
+  else if(cm==null) cm=opts.wantCommute ? commuteBetween(fromPlace, dest) : 0;
+  var ready=(!virtual && opts.wantReady) ? (state.settings.getReadyMins||30) : 0;
   var leave=start-cm;
   var readyStart=leave-ready;
   if(readyStart<5*60) readyStart=5*60;
@@ -1146,11 +1172,12 @@ function addTimedEventWithTravel(opts){
   var commuteNote=opts.commuteNote||('from '+fromLabel+(dest?' to '+dest:''));
   if(ready>0) pushKeepEvent(date, toHHMM(readyStart), toHHMM(leave), 'Get ready', 'buffer', 'for '+opts.title);
   if(cm>0) pushKeepEvent(date, toHHMM(leave), toHHMM(start), 'Commute from '+fromLabel, 'commute', commuteNote);
-  pushKeepEvent(date, toHHMM(start), toHHMM(end), opts.title, opts.type, opts.place, {
-    place:opts.place, who:opts.who, online:!!opts.online, ramble:opts.ramble, detail:{
-      who:opts.who, where:opts.place, online:!!opts.online, ramble:opts.ramble
+  var main=pushKeepEvent(date, toHHMM(start), toHHMM(end), opts.title, opts.type, opts.place, {
+    place:opts.place, who:opts.who, online:virtual, ramble:opts.ramble, detail:{
+      who:opts.who, where:opts.place, online:virtual, ramble:opts.ramble
     }
   });
+  state.lastEventId=main.id;
   if(opts.roundTrip && cm>0) pushKeepEvent(date, toHHMM(end), toHHMM(end+cm), 'Commute back to '+fromLabel, 'commute', commuteNote);
   saveState();
   return {cm:cm, fromLabel:fromLabel, ready:ready};
@@ -1215,6 +1242,60 @@ function parseDurationAnswer(text){
   return {mins:parseSessionMins(lower), until:until?parseClock(until[1]):null};
 }
 
+function looksLikeEdit(lower){
+  lower=String(lower||'');
+  if(/^(no for |no,|nope |wait |nah )/.test(lower)) return true;
+  if(/^(the )?type is\b/.test(lower)) return true;
+  if(/\bnot (an? )?(outing|class|workout|hangout)\b/.test(lower)) return true;
+  if(/\b(wrong type|type is wrong|change the type|make it online|should be online|should be a meeting)\b/.test(lower)) return true;
+  return false;
+}
+
+function lastTouchedEvent(){
+  if(state.lastEventId){
+    var hit=(state.generated||[]).filter(function(e){ return e.id===state.lastEventId; })[0];
+    if(hit) return hit;
+  }
+  var keep=(state.generated||[]).filter(function(e){ return e.keep && e.type!=='buffer' && e.type!=='commute' && !e.skipped; });
+  return keep.length?keep[keep.length-1]:null;
+}
+
+function stripTravelAround(ev){
+  var s=toMin(ev.start);
+  state.generated=(state.generated||[]).filter(function(e){
+    if(!e || e.id===ev.id || e.date!==ev.date) return true;
+    if(e.type!=='buffer' && e.type!=='commute') return true;
+    if((e.notes||'').indexOf(ev.title)!==-1) return false;
+    if(e.type==='buffer' && Math.abs(toMin(e.end)-s)<=2) return false;
+    return true;
+  });
+}
+
+function applyCorrection(text){
+  var lower=text.toLowerCase();
+  var ev=null;
+  var meetings=(state.generated||[]).filter(function(e){ return !e.skipped && (/meet/i.test(e.title)||e.type==='meeting'||e.type==='outing'); });
+  if(/meet|3\s*pm|tuesday|yap|mentor/.test(lower) && meetings.length) ev=meetings[meetings.length-1];
+  if(!ev) ev=findEvent(text, todayISO()) || lastTouchedEvent();
+  state.generated=(state.generated||[]).filter(function(e){ return !/type is not outing/i.test(e.title||''); });
+  state.flexible=(state.flexible||[]).filter(function(f){ return !/type is not outing/i.test(f.title||''); });
+  if(!ev) return 'Which event should I change? Name it (the 3pm meeting) instead of describing a new one.';
+  if(/online|not (an? )?outing|meeting|type is/.test(lower)){
+    ev.type='meeting';
+    ev.online=true;
+    if(!ev.detail) ev.detail={};
+    ev.detail.online=true;
+    if(/meet/i.test(ev.title) || ev.who) ev.title='Meeting (Online)';
+    stripTravelAround(ev);
+    ev.keep=true;
+    state.lastEventId=ev.id;
+    state.pendingAsk=null;
+    saveState();
+    return 'Got it — "'+ev.title+'" is a meeting, not an outing. No commute or get-ready. Tap the block for '+ (ev.who||'details')+'.';
+  }
+  return 'Say what to change on that event — type, time, or title. I will not add a second copy.';
+}
+
 function looksLikeNewChat(lower){
   return /^(add |i have |skip |move |spent |due |wake |income )/.test(lower) || /workouts? a week|i live |home is /.test(lower);
 }
@@ -1223,6 +1304,11 @@ function handlePending(text){
   var p=state.pendingAsk;
   if(!p) return null;
   var lower=text.toLowerCase().trim();
+  if(looksLikeEdit(lower)){
+    state.pendingAsk=null;
+    saveState();
+    return applyCorrection(text);
+  }
   if(/never mind|nevermind|cancel|forget (it|that)/.test(lower)){
     state.pendingAsk=null;
     saveState();
@@ -1439,6 +1525,8 @@ function localParse(text, allowSchedule){
     return dayBriefing(/\btomorrow\b/.test(lower)?addDaysISO(todayISO(),1):state.selectedDate||todayISO());
   }
 
+  if(looksLikeEdit(lower)) return applyCorrection(text);
+
   if(allowSchedule===false) return null;
 
   days=parseDayTokens(text);
@@ -1483,10 +1571,11 @@ function localParse(text, allowSchedule){
     var dateISO=todayISO();
     if(/\btomorrow\b/.test(lower)) dateISO=addDaysISO(todayISO(),1);
     else if(!/\btoday\b/.test(lower) && days.length) dateISO=dateForDayName(days[0], weekMonday(state.selectedDate));
-    var type2=inferBlockType(text, facts.type);
-    if(type2==='other'||type2==='commute') type2=facts.place||facts.online?'outing':'other';
-    var wantReady=/ready|getting ready|get ready/.test(lower) || type2==='outing' || type2==='workout' || type2==='hangout' || type2==='other';
-    var wantCommute=!facts.online && (/commute|通学|通勤/.test(lower) || !!facts.place);
+    var type2=facts.type || inferBlockType(text, guessType(text));
+    if(facts.online || type2==='meeting') type2='meeting';
+    else if(type2==='other'||type2==='commute') type2=facts.place?'outing':'other';
+    var wantReady=!facts.online && type2!=='meeting' && (/ready|getting ready|get ready/.test(lower) || type2==='outing' || type2==='workout' || type2==='hangout');
+    var wantCommute=!facts.online && type2!=='meeting' && (/commute|通学|通勤/.test(lower) || !!facts.place);
     var draft={
       date:dateISO, start:atTime,
       title:facts.title, type:type2, place:facts.place, who:facts.who,
@@ -1503,11 +1592,10 @@ function localParse(text, allowSchedule){
   var chitchat=/^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|nice|great|lol|haha|yes|no)[\s!.]*$/i.test(lower);
   if(chitchat) return 'What’s going on the week? Say it however you want. I’ll ask if I need a length or where you’re leaving from.';
 
-  var wantsOnCal=!chitchat && (
+  var wantsOnCal=!chitchat && !looksLikeEdit(lower) && (
     nFlex || sessFlex || days.length || factsF.place ||
     /add |put |schedule |plan |book |block |set aside |i (?:have|want|need|gotta|got to|should|am|i'm) |going |go to |meet |remind |please |can you /.test(lower) ||
-    (guessType(text)!=='other') ||
-    (titleFlex && titleFlex.length>2 && lower.length>8)
+    (guessType(text)!=='other' && guessType(text)!=='meeting')
   );
 
   if(wantsOnCal){
@@ -2058,6 +2146,8 @@ function renderBudget(){
 function applyTheme(theme){
   document.documentElement.setAttribute('data-theme', theme==='dark'?'dark':'light');
   document.getElementById('themeToggle').textContent=theme==='dark'?'☾':'☀';
+  var meta=document.querySelector('meta[name="theme-color"]');
+  if(meta) meta.setAttribute('content', theme==='dark'?'#0A0A0B':'#ECECE8');
 }
 
 function getFbConfig(){
