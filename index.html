@@ -118,11 +118,22 @@
   .cal-times{position:relative;}
   .cal-times .tick{position:absolute;right:6px;transform:translateY(-50%);font-size:.66rem;color:var(--text-soft);}
   .cal-col{position:relative;border-left:1px solid var(--border);background-image:repeating-linear-gradient(to bottom, transparent, transparent calc(var(--hourpx) - 1px), var(--border) calc(var(--hourpx) - 1px), var(--border) var(--hourpx));}
-  .cal-event{position:absolute;left:3px;right:3px;border-radius:5px;padding:3px 6px;font-size:.72rem;line-height:1.25;overflow:hidden;color:#fff;}
+  .cal-event{position:absolute;left:3px;right:3px;border-radius:5px;padding:3px 6px;font-size:.72rem;line-height:1.25;overflow:hidden;color:#fff;cursor:pointer;}
   .cal-event .t{font-weight:600;display:block;}
   .cal-event .time{opacity:.88;font-size:.66rem;}
   .cal-event.skipped{opacity:.35;text-decoration:line-through;}
-  .cal-event button.rm{position:absolute;top:1px;right:2px;background:none;border:none;color:#fff;opacity:.75;font-size:.72rem;padding:0 3px;}
+  .cal-event button.rm{position:absolute;top:1px;right:2px;background:none;border:none;color:#fff;opacity:.75;font-size:.72rem;padding:0 3px;cursor:pointer;}
+  .day-item{cursor:pointer;}
+  .day-item .del{cursor:pointer;}
+  .modal-back{position:fixed;inset:0;background:rgba(20,20,16,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .modal-back[hidden]{display:none !important;}
+  .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:440px;width:100%;padding:20px 22px;max-height:82vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);}
+  .modal-card h3{margin-bottom:4px;}
+  .modal-card .when{color:var(--text-soft);font-size:.86rem;margin-bottom:12px;}
+  .modal-dl{display:grid;grid-template-columns:88px 1fr;gap:6px 10px;font-size:.86rem;margin:12px 0 16px;}
+  .modal-dl dt{color:var(--text-soft);margin:0;}
+  .modal-dl dd{margin:0;}
+  .modal-ramble{font-size:.8rem;color:var(--text-soft);line-height:1.45;background:var(--bg-soft);padding:10px 12px;border-radius:var(--radius-sm);}
 
   .legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px;font-size:.76rem;color:var(--text-soft);}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
@@ -262,8 +273,8 @@
       <div class="card">
         <h3>Daily rhythm</h3>
         <div class="grid-form">
-          <div><label>Wake up</label><input type="time" id="s_wake"></div>
-          <div><label>Asleep by</label><input type="time" id="s_sleep"></div>
+          <div><label>Earliest I’ll start (placement)</label><input type="time" id="s_wake"></div>
+          <div><label>Latest I’ll finish (placement)</label><input type="time" id="s_sleep"></div>
           <div><label>Time to get ready (min)</label><input type="number" id="s_ready" min="0" step="5"></div>
           <div><label>Default commute (min)</label><input type="number" id="s_commute" min="0" step="5"></div>
         </div>
@@ -407,13 +418,26 @@
       <button class="chip" type="button" data-fill="I overslept by 30 minutes, shift the flexible stuff">overslept</button>
       <button class="chip" type="button" data-fill="I'm too tired, skip workout today">skip</button>
       <button class="chip" type="button" data-fill="I live in Jiyugaoka">home</button>
-      <button class="chip" type="button" data-fill="Add 2 workouts a week, each are 2 hours">workouts</button>
+      <button class="chip" type="button" data-fill="What should I do today?">today</button>
+      <button class="chip" type="button" data-fill="Plan my week">week plan</button>
     </div>
     <div class="chat-input">
       <textarea id="chatInput" placeholder="Anything for the week — no special phrasing. Time optional."></textarea>
       <button id="chatSend" type="button">Send</button>
     </div>
   </aside>
+  </div>
+</div>
+<div class="modal-back" id="eventModal" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true">
+    <h3 id="emTitle">Event</h3>
+    <div class="when" id="emWhen"></div>
+    <dl class="modal-dl" id="emDl"></dl>
+    <div class="modal-ramble" id="emRamble" hidden></div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+      <button class="btn secondary" type="button" id="emClose">Close</button>
+      <button class="btn warn" type="button" id="emSkip">Skip this</button>
+    </div>
   </div>
 </div>
 
@@ -443,7 +467,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'07:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama' },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8 },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -635,8 +659,6 @@ function generateSchedule(weekMon){
 
   DAYS.forEach(function(day){
     var date=weekDates[day], busy=[];
-    events.push({id:uid(), title:'Get ready', type:'buffer', day:day, date:date, start:toHHMM(wake), end:toHHMM(wake+ready), sourceId:null});
-    busy.push([wake, wake+ready]);
     (state.generated||[]).forEach(function(e){
       if(e.date===date && !e.skipped && e.start && e.end){
         busy.push([toMin(e.start), toMin(e.end)]);
@@ -665,7 +687,8 @@ function generateSchedule(weekMon){
     if(!slot) return false;
     events.push({
       id:uid(), title:label||task.title, type:task.type, day:day, date:weekDates[day],
-      start:toHHMM(slot[0]), end:toHHMM(slot[1]), cost:task.cost, notes:task.notes, sourceId:task.id
+      start:toHHMM(slot[0]), end:toHHMM(slot[1]), cost:task.cost, notes:task.notes, sourceId:task.id,
+      ramble:task.ramble, place:task.place, who:task.who
     });
     return true;
   }
@@ -743,6 +766,8 @@ function generateSchedule(weekMon){
     if(placed<sessions) unscheduled.push((asg.title||'Assignment')+' — '+placed+'/'+sessions+' study sessions before due');
   });
 
+  stampPrepBlocks(events, weekDates);
+
   state.generated = state.generated.concat(events);
   state.unscheduled = unscheduled;
   saveState();
@@ -756,10 +781,91 @@ function eventsOn(date){
   return expandTemplates(date);
 }
 
+function realEventsOn(date){
+  return eventsOn(date).filter(function(e){ return !e.skipped && e.type!=='buffer'; });
+}
+
+function dayRhythm(date){
+  var evs=realEventsOn(date);
+  var ready=state.settings.getReadyMins||30;
+  var sleepH=state.settings.sleepHours||8;
+  if(!evs.length) return {empty:true, date:date, evs:evs, sleepH:sleepH};
+  var first=evs[0], last=evs[evs.length-1];
+  var wake=toMin(first.start)-ready;
+  if(wake<5*60) wake=5*60;
+  var sleep=toMin(last.end)+40;
+  if(sleep>23*60+45) sleep=23*60+45;
+  var nextFirst=realEventsOn(addDaysISO(date,1))[0];
+  if(nextFirst){
+    var nextWake=toMin(nextFirst.start)-ready;
+    var needSleep=nextWake-(sleepH*60);
+    if(needSleep>0 && needSleep<sleep) sleep=needSleep;
+    if(sleep<20*60) sleep=20*60;
+  }
+  return {empty:false, date:date, evs:evs, first:first, last:last, wake:wake, sleep:sleep, sleepH:sleepH, ready:ready};
+}
+
+function dayBriefing(date){
+  date=date||state.selectedDate||todayISO();
+  var r=dayRhythm(date);
+  var dues=(state.assignments||[]).filter(function(a){ return a.due===date && !a.done; });
+  if(r.empty){
+    var extra=dues.length?' Due today: '+dues.map(function(a){return a.title;}).join(', ')+'.':'';
+    return prettyDate(date)+' has no pinned events yet.'+extra+' Sleep ~'+(r.sleepH)+' hours; no class alarm needed until something is on the grid.';
+  }
+  var lines=[];
+  lines.push(prettyDate(date)+' — run of show:');
+  lines.push('Wake around '+fmt12(toHHMM(r.wake))+' ('+r.ready+' min to get ready before '+r.first.title+' at '+fmt12(r.first.start)+').');
+  r.evs.filter(function(e){ return e.type!=='commute'; }).forEach(function(e){
+    var bit=fmt12(e.start)+' '+e.title;
+    if(e.who) bit+=' — '+e.who;
+    if(e.place|| (e.detail&&e.detail.where)) bit+=' @ '+(e.place||e.detail.where);
+    if(e.online||(e.detail&&e.detail.online)) bit+=' (online)';
+    lines.push('• '+bit);
+  });
+  if(dues.length) lines.push('Due: '+dues.map(function(a){ return a.title; }).join(', ')+'.');
+  lines.push('Last block ends '+fmt12(r.last.end)+'. I’d start winding down after that and be in bed around '+fmt12(toHHMM(r.sleep))+' so you get ~'+r.sleepH+'h.');
+  return lines.join('\n');
+}
+
+function weekBriefing(){
+  var monday=weekMonday(state.selectedDate);
+  var parts=['Week of '+prettyDate(monday)+':'];
+  DAYS.forEach(function(day,i){
+    var date=addDaysISO(monday,i);
+    var r=dayRhythm(date);
+    if(r.empty){ parts.push(day+': open'); return; }
+    parts.push(day+': up '+fmt12(toHHMM(r.wake))+' · '+r.evs.filter(function(e){return e.type!=='commute';}).map(function(e){return e.title;}).join(', ')+' · bed '+fmt12(toHHMM(r.sleep)));
+  });
+  var dues=(state.assignments||[]).filter(function(a){
+    return a.due>=monday && a.due<=addDaysISO(monday,6) && !a.done;
+  });
+  if(dues.length) parts.push('Due this week: '+dues.map(function(a){ return a.title+' ('+prettyDate(a.due)+')'; }).join('; ')+'.');
+  return parts.join('\n');
+}
+
+function stampPrepBlocks(events, weekDates){
+  var ready=state.settings.getReadyMins||30;
+  DAYS.forEach(function(day){
+    var date=weekDates[day];
+    var dayEvs=events.filter(function(e){ return e.date===date && !e.skipped; });
+    var keepReady=(state.generated||[]).some(function(e){ return e.date===date && e.type==='buffer' && e.keep && !e.skipped; });
+    if(keepReady || dayEvs.some(function(e){ return e.type==='buffer'; })) return;
+    var first=dayEvs.filter(function(e){ return e.type==='commute'||e.type==='class'||e.type==='work'||e.type==='outing'||e.type==='workout'; })
+      .sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
+    if(!first) return;
+    var end=toMin(first.start);
+    var start=end-ready;
+    if(start<5*60) start=5*60;
+    if(end-start<10) return;
+    events.push({id:uid(), title:'Get ready', type:'buffer', day:day, date:date, start:toHHMM(start), end:toHHMM(end), notes:'before '+first.title});
+  });
+}
+
 function expandTemplates(date){
   var day=dayNameOf(date), monday=weekMonday(date);
-  var wake=toMin(state.settings.wake), ready=state.settings.getReadyMins||0;
-  var out=[{id:'virt-ready-'+date, title:'Get ready', type:'buffer', day:day, date:date, start:toHHMM(wake), end:toHHMM(wake+ready), virtual:true}];
+  var ready=state.settings.getReadyMins||0;
+  var out=[];
   (state.fixed||[]).forEach(function(f){
     if(templateDays(f).indexOf(day)===-1) return;
     if(f.recur==='once' && f.onceWeek && f.onceWeek!==monday) return;
@@ -770,6 +876,12 @@ function expandTemplates(date){
       out.push({id:'virt-c2-'+f.id+'-'+date, title:'Commute', type:'commute', day:day, date:date, start:f.end, end:toHHMM(e+cm), virtual:true});
     }
   });
+  var first=out.sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
+  if(first && ready){
+    var end=toMin(first.start), start=end-ready;
+    if(start<5*60) start=5*60;
+    if(end>start) out.unshift({id:'virt-ready-'+date, title:'Get ready', type:'buffer', day:day, date:date, start:toHHMM(start), end:toHHMM(end), virtual:true});
+  }
   return out.sort(function(a,b){ return toMin(a.start)-toMin(b.start); });
 }
 
@@ -819,6 +931,7 @@ function guessType(text){
   if(/meal\s*prep|mealprep|grocer/.test(l)) return 'mealprep';
   if(/hangout|friends|hang out/.test(l)) return 'hangout';
   if(/study|homework|assignment|midterm|essay|課題|レポート/.test(l)) return 'study';
+  if(/meeting|meet with|office hour/.test(l)) return 'outing';
   if(/outing|dinner|movie|concert|cafe|dentist|appointment|errand|shop|going |go to |headed |meet /.test(l)) return 'outing';
   if(/commute/.test(l)) return 'commute';
   return 'other';
@@ -871,19 +984,60 @@ function parseSessionMins(lower){
   return null;
 }
 
-function eventTitleFrom(text){
-  var t=cleanTitle(text);
-  t=t.replace(/\b(\d+)\s*(times|sessions?|workouts?)?\s*(a|per)\s*week\b/ig,'');
-  t=t.replace(/\b(twice|once|thrice)\s*(a|per)?\s*week\b/ig,'');
-  t=t.replace(/\beach\b.*$/i,'');
-  t=t.replace(/\bfor\s+\d+(?:\.\d+)?\s*(h|hr|hours?|min).*$/i,'');
-  t=t.replace(/\b\d+(?:\.\d+)?\s*(h|hr|hours?|min)(?:utes?)?\b/ig,'');
-  t=t.replace(/\b(find|optimal|whenever|idk when|don'?t know when|this week|next week)\b/ig,'');
-  t=t.replace(/\b(from home|from class|add commute|getting ready|get ready)\b/ig,'');
-  t=t.replace(/\b(today|tomorrow|tonight)\b/ig,'');
-  t=t.replace(/\s+/g,' ').replace(/^[\s,.-]+|[\s,.-]+$/g,'').trim();
-  if(t.length>52) t=t.slice(0,49)+'…';
-  return t;
+function eventTitleFrom(text, facts){
+  facts=facts||parseEventFacts(text);
+  return facts.title;
+}
+
+function parseEventFacts(text){
+  var lower=String(text||'').toLowerCase();
+  var place=parsePlace(text);
+  if(!place && /noborock/.test(lower)){
+    var nm=text.match(/noborock\s*([^,]+?)(?=,|$)/i);
+    place=('Noborock '+(nm?nm[1]:'')).replace(/\s+/g,' ').trim();
+  }
+  var online=/online|zoom|google meet|teams|discord|virtual|remote/.test(lower);
+  var who=null;
+  var wm=String(text).match(/\bwith (?:my )?([^,.]+?)(?=\s+(?:online|on |at |tomorrow|today|this |next |monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|,|$)/i);
+  if(wm) who=wm[1].replace(/^(the|a)\s+/i,'').trim();
+  var dur=parseSessionMins(lower);
+  var type=guessType(text);
+  var title=shortTitle(text, {place:place, online:online, who:who, type:type});
+  return {place:place, online:online, who:who, dur:dur, title:title, type:type, ramble:String(text||'')};
+}
+
+function titleCasePlace(p){
+  return String(p||'').trim().split(/\s+/).map(function(w){
+    if(/^(and|of|the)$/i.test(w)) return w.toLowerCase();
+    return w.charAt(0).toUpperCase()+w.slice(1);
+  }).join(' ');
+}
+
+function shortTitle(text, facts){
+  var l=String(text||'').toLowerCase();
+  var noun='';
+  if(/boulder|noborock|ノボロック/.test(l)) noun='Bouldering';
+  else if(/meeting|meet with|meet my/.test(l)) noun='Meeting';
+  else if(/dentist/.test(l)) noun='Dentist';
+  else if(/coffee/.test(l)) noun='Coffee';
+  else if(/interview/.test(l)) noun='Interview';
+  else if(/office hour/.test(l)) noun='Office hours';
+  else if(/\bshift\b/.test(l) || (/\bwork\b/.test(l) && !/homework|workout/.test(l))) noun='Work';
+  else {
+    var t=cleanTitle(text);
+    t=t.replace(/^(hello|hey|hi|ok so|so|um|uh)\s+/i,'');
+    t=t.replace(/\b(today|tomorrow|tonight|i'?m going|i am going|going to|headed to|going)\b/ig,'');
+    t=t.replace(/\b(add commute.*|getting ready.*|get ready.*|add commute time.*)\b/ig,'');
+    t=t.replace(/\bonline\b/ig,'');
+    t=t.replace(/\bwith (?:my )?.+$/i,'');
+    t=t.replace(/\bat\s+\d.+$/i,'');
+    t=t.replace(/\s+/g,' ').trim();
+    var words=t.split(/\s+/).filter(function(w){ return w.length>1 && !/^(the|and|for|to)$/i.test(w); }).slice(0,4);
+    noun=words.map(function(w){ return w.charAt(0).toUpperCase()+w.slice(1); }).join(' ') || TYPE_LABEL[facts.type]||'Plan';
+  }
+  if(facts.online) return noun+' (Online)';
+  if(facts.place) return noun+' @ '+titleCasePlace(facts.place);
+  return noun;
 }
 
 function inferBlockType(text, type){
@@ -904,7 +1058,7 @@ function placeFlexibleTask(opts){
     id:uid(), title:title, type:type, hours:(n*sess)/60, session:sess,
     preferredDay:opts.days && opts.days.length===1?opts.days[0]:null,
     days:opts.days && opts.days.length?opts.days:undefined,
-    autoPlace:true, notes:opts.place||undefined
+    autoPlace:true, notes:opts.place||undefined, place:opts.place, ramble:opts.ramble
   });
   generateSchedule(weekMonday(state.selectedDate));
   var id=state.flexible[state.flexible.length-1].id;
@@ -961,21 +1115,21 @@ function inferOrigin(date, startMin, text){
 
 function defaultDurationMins(type, text){
   var l=(text||'').toLowerCase();
-  var hm=l.match(/(\d+(?:\.\d+)?)\s*(h|hr|hour)/);
-  if(hm) return Math.round(+hm[1]*60);
-  var mm=l.match(/(\d+)\s*min/);
-  if(mm) return +mm[1];
-  if(type==='workout' || /boulder|climb/.test(l)) return 120;
+  var explicit=parseSessionMins(l);
+  if(explicit) return explicit;
   if(type==='class') return 90;
-  return 90;
+  return null;
 }
 
-function pushKeepEvent(date, start, end, title, type, notes){
+function pushKeepEvent(date, start, end, title, type, notes, extra){
   if(toMin(end)<=toMin(start)) end=toHHMM(toMin(start)+30);
-  state.generated.push({
+  var ev={
     id:uid(), title:title, type:type, day:dayNameOf(date), date:date,
     start:start, end:end, notes:notes||undefined, keep:true
-  });
+  };
+  if(extra) Object.keys(extra).forEach(function(k){ ev[k]=extra[k]; });
+  state.generated.push(ev);
+  return ev;
 }
 
 function addTimedEventWithTravel(opts){
@@ -992,7 +1146,11 @@ function addTimedEventWithTravel(opts){
   var commuteNote=opts.commuteNote||('from '+fromLabel+(dest?' to '+dest:''));
   if(ready>0) pushKeepEvent(date, toHHMM(readyStart), toHHMM(leave), 'Get ready', 'buffer', 'for '+opts.title);
   if(cm>0) pushKeepEvent(date, toHHMM(leave), toHHMM(start), 'Commute from '+fromLabel, 'commute', commuteNote);
-  pushKeepEvent(date, toHHMM(start), toHHMM(end), opts.title, opts.type, opts.place);
+  pushKeepEvent(date, toHHMM(start), toHHMM(end), opts.title, opts.type, opts.place, {
+    place:opts.place, who:opts.who, online:!!opts.online, ramble:opts.ramble, detail:{
+      who:opts.who, where:opts.place, online:!!opts.online, ramble:opts.ramble
+    }
+  });
   if(opts.roundTrip && cm>0) pushKeepEvent(date, toHHMM(end), toHHMM(end+cm), 'Commute back to '+fromLabel, 'commute', commuteNote);
   saveState();
   return {cm:cm, fromLabel:fromLabel, ready:ready};
@@ -1011,13 +1169,50 @@ function stripPlaceAnswer(text){
 }
 
 function finishOutingDraft(draft){
+  if(draft.durationMins) draft.end=toHHMM(toMin(draft.start)+draft.durationMins);
   var result=addTimedEventWithTravel(draft);
-  var bits=['Added '+draft.title+' on '+prettyDate(draft.date)+' '+fmt12(draft.start)+'–'+fmt12(draft.end)+'.'];
+  var bits=['Added "'+draft.title+'" on '+prettyDate(draft.date)+' '+fmt12(draft.start)+'–'+fmt12(draft.end)+'.'];
   if(result.ready) bits.push('Get ready '+result.ready+' min before you leave.');
   if(result.cm) bits.push('Commute ~'+result.cm+' min from '+result.fromLabel+(draft.place?' to '+draft.place:'')+'.');
   if(draft.from==='campus' && draft.because) bits.push('I used '+draft.because+'.');
   if(draft.from==='home' && state.settings.homePlace) bits.push('Home is '+state.settings.homePlace+'.');
-  return bits.join(' ');
+  bits.push('');
+  bits.push(dayBriefing(draft.date));
+  return bits.join('\n');
+}
+
+function continueDraft(draft){
+  if(!draft.durationMins){
+    state.pendingAsk={kind:'duration', draft:draft};
+    saveState();
+    return 'How long will "'+draft.title+'" be? Say 2 hours, 90 min, or until 8pm — I won’t guess.';
+  }
+  draft.end=toHHMM(toMin(draft.start)+draft.durationMins);
+  var meeting=/meet/i.test(draft.title+' '+(draft.ramble||''));
+  if(meeting && !draft.who){
+    state.pendingAsk={kind:'withWho', draft:draft};
+    saveState();
+    return 'Who is "'+draft.title+'" with? I’ll keep that on the event when you tap it.';
+  }
+  if(draft.wantCommute && !draft.online && !draft.from){
+    var origin=inferOrigin(draft.date, toMin(draft.start), draft.ramble||'');
+    if(origin.ask){
+      state.pendingAsk={kind:'leaveFrom', draft:draft};
+      saveState();
+      var extra=origin.last ? ' Your last thing before that is '+origin.last.title+' until '+fmt12(origin.last.end)+'.' : '';
+      return 'Leaving from home or from class?'+extra+(state.settings.homePlace?' I already have home as '+state.settings.homePlace+'.':' If home, I’ll remember the station.');
+    }
+    draft.from=origin.from;
+    draft.because=origin.because;
+  }
+  state.pendingAsk=null;
+  return finishOutingDraft(draft);
+}
+
+function parseDurationAnswer(text){
+  var lower=text.toLowerCase();
+  var until=lower.match(/until\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)/);
+  return {mins:parseSessionMins(lower), until:until?parseClock(until[1]):null};
 }
 
 function looksLikeNewChat(lower){
@@ -1032,6 +1227,34 @@ function handlePending(text){
     state.pendingAsk=null;
     saveState();
     return 'Ok, dropped that. Say it again when you want.';
+  }
+  if(p.kind==='duration'){
+    var ans=parseDurationAnswer(text);
+    if(ans.until && p.draft.start){
+      var mins=toMin(ans.until)-toMin(p.draft.start);
+      if(mins<=0) mins+=12*60;
+      p.draft.durationMins=mins;
+      return continueDraft(p.draft);
+    }
+    if(ans.mins){
+      p.draft.durationMins=ans.mins;
+      return continueDraft(p.draft);
+    }
+    return 'Give me a length — 2 hours, 45 min, or until 8pm.';
+  }
+  if(p.kind==='withWho'){
+    var who=text.replace(/^(with|it'?s|its)\s+/i,'').trim();
+    if(who.length<2) return 'Name the person or group.';
+    p.draft.who=who;
+    return continueDraft(p.draft);
+  }
+  if(p.kind==='flexDuration'){
+    var ans2=parseDurationAnswer(text);
+    var sess=ans2.mins;
+    if(!sess) return 'How long is each session? 2 hours or 45 min is enough.';
+    state.pendingAsk=null;
+    var o=p.opts||{};
+    return placeFlexibleTask({title:o.title, type:o.type, n:o.n||1, session:sess, days:o.days, place:o.place, ramble:o.ramble});
   }
   if(p.kind==='leaveFrom'){
     if(/class|campus|school|ookayama|lecture|lab\b/.test(lower) && !/home/.test(lower)){
@@ -1211,6 +1434,11 @@ function localParse(text, allowSchedule){
     return 'I’ll lean '+state.settings.preferBand+' when I pick times for things you don’t clock.';
   }
 
+  if(/what should i do|plan my week|plan my day|what'?s today|what'?s my day|brief me|run of show/.test(lower)){
+    if(/week/.test(lower) && !/today|day/.test(lower)) return weekBriefing();
+    return dayBriefing(/\btomorrow\b/.test(lower)?addDaysISO(todayISO(),1):state.selectedDate||todayISO());
+  }
+
   if(allowSchedule===false) return null;
 
   days=parseDayTokens(text);
@@ -1234,7 +1462,8 @@ function localParse(text, allowSchedule){
   }
 
   if(range){
-    var title=eventTitleFrom(text.replace(/due\s+\w+[^.]*$/i,'')) || TYPE_LABEL[type] || 'Untitled';
+    var factsR=parseEventFacts(text.replace(/due\s+\w+[^.]*$/i,''));
+    var title=factsR.title || TYPE_LABEL[type] || 'Untitled';
     var classDays=parseDayTokens(text.replace(/due[^,]*/ig,''));
     if(!classDays.length) classDays=days.length?days:[dayNameOf(state.selectedDate)];
     if(/due/.test(lower) && classDays.length>1) classDays=classDays.slice(0,-1);
@@ -1243,51 +1472,39 @@ function localParse(text, allowSchedule){
     if(blockType==='other' && (recurring || classDays.length>1 || /i have/.test(lower))) blockType='class';
     addFixedFromChat(title, blockType, classDays.length?classDays:days, range.start, range.end, commute, recurring||classDays.length>1?'weekly':'once');
     generateSchedule(weekMonday(state.selectedDate));
-    var classNote='Added '+title+' '+(classDays.join('/')||days.join('/'))+' '+fmt12(range.start)+'–'+fmt12(range.end)+(recurring||(classDays.length>1)?' (weekly)':'')+'.';
-    return dueNote?classNote+'\n'+dueNote:classNote;
+    var classNote='Added "'+title+'" '+(classDays.join('/')||days.join('/'))+' '+fmt12(range.start)+'–'+fmt12(range.end)+(recurring||(classDays.length>1)?' (weekly)':'')+'.';
+    return dueNote?classNote+'\n'+dueNote+'\n'+weekBriefing():classNote+'\n'+dayBriefing(dateForDayName(classDays[0], weekMonday(state.selectedDate)));
   }
   if(dueNote) return dueNote;
 
   var atTime=parseAtTime(text);
-  var place=parsePlace(text);
   if(atTime){
+    var facts=parseEventFacts(text);
     var dateISO=todayISO();
     if(/\btomorrow\b/.test(lower)) dateISO=addDaysISO(todayISO(),1);
     else if(!/\btoday\b/.test(lower) && days.length) dateISO=dateForDayName(days[0], weekMonday(state.selectedDate));
-    var type2=inferBlockType(text, guessType(text));
-    if(type2==='other'||type2==='commute') type2=place?'outing':'other';
-    var dur=defaultDurationMins(type2, text);
-    var wantReady=/ready|getting ready|get ready/.test(lower) || type2==='outing' || type2==='workout' || type2==='hangout';
-    var wantCommute=/commute|通学|通勤/.test(lower) || !!place;
-    var title=eventTitleFrom(text) || TYPE_LABEL[type2] || 'Plan';
-    if(place && title.toLowerCase().indexOf(place.toLowerCase())===-1) title=title+' · '+place;
+    var type2=inferBlockType(text, facts.type);
+    if(type2==='other'||type2==='commute') type2=facts.place||facts.online?'outing':'other';
+    var wantReady=/ready|getting ready|get ready/.test(lower) || type2==='outing' || type2==='workout' || type2==='hangout' || type2==='other';
+    var wantCommute=!facts.online && (/commute|通学|通勤/.test(lower) || !!facts.place);
     var draft={
-      date:dateISO, start:atTime, end:toHHMM(toMin(atTime)+dur),
-      title:title, type:type2, place:place, wantReady:wantReady,
-      wantCommute:wantCommute, roundTrip:wantCommute
+      date:dateISO, start:atTime,
+      title:facts.title, type:type2, place:facts.place, who:facts.who,
+      online:facts.online, ramble:facts.ramble, wantReady:wantReady,
+      wantCommute:wantCommute, roundTrip:wantCommute, durationMins:facts.dur||null
     };
-    if(wantCommute){
-      var origin=inferOrigin(dateISO, toMin(atTime), text);
-      if(origin.ask){
-        state.pendingAsk={kind:'leaveFrom', draft:draft};
-        saveState();
-        var extra=origin.last ? ' Your last thing before that is '+origin.last.title+' until '+fmt12(origin.last.end)+'.' : '';
-        return 'Leaving from home or from class?'+extra+(state.settings.homePlace?' I already have home as '+state.settings.homePlace+'.':' If home, I’ll remember the station.');
-      }
-      draft.from=origin.from;
-      draft.because=origin.because;
-    }
-    return finishOutingDraft(draft);
+    return continueDraft(draft);
   }
 
   var nFlex=parseCountPerWeek(lower) || (days.length>1?days.length:0);
   var sessFlex=parseSessionMins(lower);
-  var titleFlex=eventTitleFrom(text);
+  var factsF=parseEventFacts(text);
+  var titleFlex=factsF.title;
   var chitchat=/^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|nice|great|lol|haha|yes|no)[\s!.]*$/i.test(lower);
-  if(chitchat) return 'What’s going on the week? Classes, errands, gym, due dates — say it however you want. If you skip the time, I’ll find a gap.';
+  if(chitchat) return 'What’s going on the week? Say it however you want. I’ll ask if I need a length or where you’re leaving from.';
 
   var wantsOnCal=!chitchat && (
-    nFlex || sessFlex || days.length || place ||
+    nFlex || sessFlex || days.length || factsF.place ||
     /add |put |schedule |plan |book |block |set aside |i (?:have|want|need|gotta|got to|should|am|i'm) |going |go to |meet |remind |please |can you /.test(lower) ||
     (guessType(text)!=='other') ||
     (titleFlex && titleFlex.length>2 && lower.length>8)
@@ -1295,10 +1512,14 @@ function localParse(text, allowSchedule){
 
   if(wantsOnCal){
     var n=nFlex || (days.length?Math.max(1,days.length):1);
-    var sess=sessFlex || defaultDurationMins(type==='other'?'outing':type, text);
     var t=type==='other'||type==='commute' ? (n>1?'other':'outing') : type;
     if(!titleFlex || /^(plan|untitled|other)$/i.test(titleFlex)) titleFlex=TYPE_LABEL[t]||'Plan';
-    return placeFlexibleTask({title:titleFlex, type:t, n:n, session:sess, days:days, place:place});
+    if(!sessFlex){
+      state.pendingAsk={kind:'flexDuration', opts:{title:titleFlex, type:t, n:n, days:days, place:factsF.place, ramble:text}};
+      saveState();
+      return 'How long should each "'+titleFlex+'" block be? I need that to fit it in the gaps.';
+    }
+    return placeFlexibleTask({title:titleFlex, type:t, n:n, session:sessFlex, days:days, place:factsF.place, ramble:text});
   }
 
   return null;
@@ -1401,7 +1622,7 @@ function sendChat(){
 }
 
 function plannerSchema(){
-  return 'Return ONLY minified JSON: {"reply":string,"actions":[{"op":"skip"|"move"|"add"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]} You are a scheduling agent. ANY request to do, have, add, or remember something becomes actions. Do not only give examples. If no clock, omit start and set sessions + sessionMins so the app finds gaps. Times HH:MM 24h. days like Mon.';
+  return 'Return ONLY minified JSON: {"reply":string,"actions":[...]} Short titles only (e.g. Bouldering @ Noborock Shibuya, Meeting (Online)). People/places go in note. If duration is missing, ask in reply and omit add. If no clock, omit start so the app finds gaps.';
 }
 
 function weekDigest(){
@@ -1545,15 +1766,15 @@ function renderCalendar(){
 function renderWeek(mount){
   var monday=weekMonday(state.selectedDate);
   document.getElementById('calTitle').textContent='Week of '+prettyDate(monday);
-  var wake=toMin(state.settings.wake), sleep=toMin(state.settings.sleep);
-  if(sleep<=wake) sleep+=1440;
-  var viewStart=Math.floor(Math.min(wake,6*60)/60)*60;
-  var viewEnd=Math.max(sleep, 22*60);
+  var viewStart=6*60;
+  var viewEnd=Math.max(22*60, toMin(state.settings.sleep)||22*60);
   var weekEvents=(state.generated||[]).filter(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6); });
   weekEvents.forEach(function(e){
     var en=toMin(e.end); if(en<=toMin(e.start)) en+=1440;
     viewEnd=Math.max(viewEnd, en);
+    if(e.start) viewStart=Math.min(viewStart, toMin(e.start));
   });
+  viewStart=Math.floor(Math.max(5*60, viewStart)/60)*60;
   viewEnd=Math.ceil(viewEnd/60)*60;
   var pxPerMin=1.02, totalMin=viewEnd-viewStart, totalPx=totalMin*pxPerMin, hourPx=60*pxPerMin;
   var today=todayISO();
@@ -1586,8 +1807,10 @@ function renderWeek(mount){
       div.style.background=TYPE_COLOR[e.type]||TYPE_COLOR.other;
       div.innerHTML='<span class="t"></span><span class="time"></span><button class="rm" type="button">×</button>';
       div.querySelector('.t').textContent=e.title;
-      div.querySelector('.time').textContent=fmt12(e.start)+'–'+fmt12(e.end)+(e.notes?' · '+e.notes:'');
-      div.querySelector('.rm').addEventListener('click', function(){
+      div.querySelector('.time').textContent=fmt12(e.start)+'–'+fmt12(e.end);
+      div.addEventListener('click', function(){ openEventDetail(e); });
+      div.querySelector('.rm').addEventListener('click', function(ev){
+        ev.stopPropagation();
         if(e.virtual){ openChat(); return; }
         state.generated=state.generated.filter(function(x){return x.id!==e.id;});
         saveState(); renderCalendar();
@@ -1603,20 +1826,28 @@ function renderDay(mount){
   document.getElementById('calTitle').textContent=prettyDate(date);
   var list=eventsOn(date);
   if(!list.length){
-    mount.innerHTML='<div class="empty">Nothing on this day yet. Type in the chat on the right — classes, due dates, gym, whatever is in your head.</div>';
+    mount.innerHTML='<div class="empty">'+escapeHtml(dayBriefing(date))+'</div>';
     return;
   }
-  mount.innerHTML='<div class="day-list"></div>';
+  mount.innerHTML='<div class="recommend" id="dayBrief"></div><div class="day-list"></div>';
+  mount.querySelector('#dayBrief').textContent=dayBriefing(date);
   var wrap=mount.querySelector('.day-list');
   list.forEach(function(e){
     var row=el('div','day-item'+(e.skipped?' skipped':''),'');
     row.innerHTML='<div class="when"></div><div><div class="ttl"></div><div class="meta"></div></div><button class="del" type="button">Skip</button>';
     row.querySelector('.when').textContent=fmt12(e.start)+'–'+fmt12(e.end);
     row.querySelector('.ttl').textContent=e.title;
-    row.querySelector('.meta').textContent=(TYPE_LABEL[e.type]||e.type)+(e.notes?' · '+e.notes:'')+(e.cost?' · $'+e.cost:'');
+    var meta=[];
+    if(e.who) meta.push(e.who);
+    if(e.place||(e.detail&&e.detail.where)) meta.push(e.place||e.detail.where);
+    if(e.online) meta.push('online');
+    meta.push(TYPE_LABEL[e.type]||e.type);
+    row.querySelector('.meta').textContent=meta.join(' · ');
     row.querySelector('.ttl').style.borderLeft='3px solid '+(TYPE_COLOR[e.type]||'#888');
     row.querySelector('.ttl').style.paddingLeft='8px';
-    row.querySelector('.del').addEventListener('click', function(){
+    row.addEventListener('click', function(){ openEventDetail(e); });
+    row.querySelector('.del').addEventListener('click', function(ev){
+      ev.stopPropagation();
       e.skipped=true; e.keep=true; saveState(); renderCalendar();
     });
     wrap.appendChild(row);
@@ -1661,6 +1892,31 @@ function el(tag, cls, text){
   if(cls) n.className=cls;
   if(text) n.textContent=text;
   return n;
+}
+
+var modalEvent=null;
+function openEventDetail(e){
+  modalEvent=e;
+  var modal=document.getElementById('eventModal');
+  document.getElementById('emTitle').textContent=e.title||'Event';
+  document.getElementById('emWhen').textContent=prettyDate(e.date)+' · '+fmt12(e.start)+'–'+fmt12(e.end)+(e.skipped?' · skipped':'');
+  var rows=[];
+  function add(k,v){ if(v) rows.push('<dt>'+escapeHtml(k)+'</dt><dd>'+escapeHtml(v)+'</dd>'); }
+  add('Type', TYPE_LABEL[e.type]||e.type);
+  add('With', e.who||(e.detail&&e.detail.who));
+  add('Where', e.place||(e.detail&&e.detail.where)||e.notes);
+  if(e.online||(e.detail&&e.detail.online)) add('Mode', 'Online');
+  if(e.cost) add('Cost', '$'+e.cost);
+  document.getElementById('emDl').innerHTML=rows.join('');
+  var ramble=e.ramble||(e.detail&&e.detail.ramble)||'';
+  var box=document.getElementById('emRamble');
+  if(ramble && ramble!==e.title){ box.hidden=false; box.textContent=ramble; }
+  else box.hidden=true;
+  modal.hidden=false;
+}
+function closeEventDetail(){
+  document.getElementById('eventModal').hidden=true;
+  modalEvent=null;
 }
 
 function renderChat(){
@@ -2058,6 +2314,14 @@ document.getElementById('regenBtn').addEventListener('click', function(){
   generateSchedule(weekMonday(state.selectedDate)); renderCalendar(); renderUnscheduled();
 });
 document.getElementById('chatClose').addEventListener('click', closeChat);
+document.getElementById('emClose').addEventListener('click', closeEventDetail);
+document.getElementById('eventModal').addEventListener('click', function(e){
+  if(e.target.id==='eventModal') closeEventDetail();
+});
+document.getElementById('emSkip').addEventListener('click', function(){
+  if(!modalEvent || modalEvent.virtual){ closeEventDetail(); return; }
+  modalEvent.skipped=true; modalEvent.keep=true; saveState(); closeEventDetail(); renderCalendar();
+});
 document.getElementById('chatSend').addEventListener('click', sendChat);
 document.getElementById('chatInput').addEventListener('keydown', function(e){
   if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendChat(); }
@@ -2185,7 +2449,7 @@ function initAll(){
   buildDayChecks('f_days','fday');
   fillForms();
   if(!state.chatLog.length){
-    state.chatLog.push({role:'assistant', text:'Hi — dump your week in this panel. Ramble is fine: classes, commute, gym, “lab report due Friday.” I will place it. You can skip Setup. I cannot read the Titech app; paste a timetable or T2SCHOLA calendar export if you have one.'});
+    state.chatLog.push({role:'assistant', text:'Hi — dump whatever is happening. I’ll make a short title, ask if I need how long or where you’re leaving from, and you can tap any block for the details. Ask “what should I do today?” for wake, sleep, and the run of show.'});
   }
   var monday=weekMonday(state.selectedDate);
   var hasThisWeek=(state.generated||[]).some(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6); });
