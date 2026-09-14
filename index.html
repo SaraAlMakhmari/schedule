@@ -230,8 +230,8 @@
   <main>
     <section class="view active" id="view-schedule">
       <div class="banner warn" id="syncBanner" hidden>
-        <span>This copy only lives in this browser. Paste Firebase config in Settings, then Sign in — Mac and phone share the same week in about a second. GitHub is just the website.</span>
-        <button class="btn secondary" type="button" id="gotoFirebase">Settings</button>
+        <span id="syncBannerText">Sign in with Google on this device so Mac and phone share the same week.</span>
+        <button class="btn" type="button" id="gotoFirebase">Sign in</button>
       </div>
       <div class="topbar">
         <div>
@@ -1265,11 +1265,66 @@ function applyTheme(theme){
 function getFbConfig(){
   try{
     var saved=localStorage.getItem(FB_KEY);
-    if(saved) return JSON.parse(saved);
+    if(saved){
+      var parsed=JSON.parse(saved);
+      if(parsed && parsed.apiKey && parsed.projectId) return parsed;
+    }
   }catch(e){}
   var c=window.WEEKPLAN_FIREBASE||{};
   if(c.apiKey && c.projectId) return c;
   return null;
+}
+
+function authErrorMessage(err){
+  var code=(err&&err.code)||'';
+  if(code==='auth/unauthorized-domain' || /requested action is invalid/i.test((err&&err.message)||'')){
+    return 'Google will not sign in from this GitHub address. Open https://my-schedule-app-b68ca.web.app instead, or add saraalmakhmari.github.io under Firebase → Authentication → Settings → Authorized domains.';
+  }
+  if(code==='auth/popup-blocked') return 'The sign-in window was blocked. Allow pop-ups for this site, then tap Sign in again.';
+  if(code==='auth/popup-closed-by-user') return 'Sign-in window closed before finishing.';
+  if(code==='auth/cancelled-popup-request') return 'Sign-in was interrupted. Tap Sign in once more.';
+  if(!window.firebase) return 'Firebase did not load. Check your network and refresh.';
+  return (err&&err.message)||'Sign-in failed.';
+}
+
+function startGoogleSignIn(){
+  if(!getFbConfig() || !window.firebase){ switchView('settings'); setSyncChip('Firebase is not ready', 'warn'); return; }
+  if(!fb.app){
+    try{ fb.app=firebase.initializeApp(getFbConfig()); }
+    catch(e){ setSyncChip(authErrorMessage(e), 'warn'); return; }
+  }
+  if(fb.user){ firebase.auth().signOut(); return; }
+  var provider=new firebase.auth.GoogleAuthProvider();
+  setSyncChip('Opening Google…', 'warn');
+  var standalone=window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  var ios=/iPhone|iPad|iPod/i.test(navigator.userAgent);
+  var fail=function(err){ setSyncChip(authErrorMessage(err), 'warn'); };
+  if(standalone || ios){
+    firebase.auth().signInWithRedirect(provider).catch(fail);
+    return;
+  }
+  firebase.auth().signInWithPopup(provider).catch(function(err){
+    if(err && (err.code==='auth/popup-blocked' || err.code==='auth/operation-not-supported-in-this-environment')){
+      return firebase.auth().signInWithRedirect(provider);
+    }
+    fail(err);
+  });
+}
+
+function updateSyncBanner(){
+  var el=document.getElementById('syncBanner');
+  var text=document.getElementById('syncBannerText');
+  var btn=document.getElementById('gotoFirebase');
+  if(!el) return;
+  if(fb.user){ el.hidden=true; return; }
+  el.hidden=false;
+  if(getFbConfig()){
+    text.textContent='You are not signed in yet. Tap Sign in and pick the same Google account on Mac and phone.';
+    btn.textContent='Sign in';
+  } else {
+    text.textContent='Firebase is not loaded yet. Open Settings, or refresh the page on https://saraalmakhmari.github.io/schedule/';
+    btn.textContent='Settings';
+  }
 }
 
 function openChat(){
@@ -1278,12 +1333,6 @@ function openChat(){
 }
 function closeChat(){ document.getElementById('chatDrawer').classList.add('closed'); }
 
-function updateSyncBanner(){
-  var el=document.getElementById('syncBanner');
-  if(!el) return;
-  el.hidden=!!fb.user;
-}
-
 function setSyncChip(text, cls){
   var elc=document.getElementById('syncChip');
   elc.textContent=text;
@@ -1291,15 +1340,61 @@ function setSyncChip(text, cls){
   updateSyncBanner();
 }
 
+function isIOSWeb(){
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+}
+
+function setupFirestore(){
+  var db=firebase.firestore();
+  if(fb.fsReady) return db;
+  try{
+    db.settings({
+      experimentalForceLongPolling: true,
+      ignoreUndefinedProperties: true
+    });
+  }catch(e){}
+  if(!isIOSWeb()){
+    db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+  }
+  fb.fsReady=true;
+  return db;
+}
+
+function userDoc(){
+  return setupFirestore().collection('users').doc(fb.user.uid);
+}
+
+function applyRemoteDoc(doc){
+  if(!doc || !doc.exists){ pushRemote(true); return; }
+  var remote=doc.data()||{};
+  if(!remote.state) return;
+  var meta=doc.metadata||{};
+  if(remote.clientId && remote.clientId===window.__wpClient){
+    if(!meta.fromCache) setSyncChip('Synced as '+((fb.user&&fb.user.email)||'you'), 'ok');
+    return;
+  }
+  applyingRemote=true;
+  state=Object.assign(defaultState(), remote.state, {
+    settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
+    budget: Object.assign(defaultState().budget, (remote.state.budget||{}))
+  });
+  persistLocal();
+  applyingRemote=false;
+  refreshAll();
+  if(meta.fromCache) setSyncChip('Updating from cloud…', 'warn');
+  else setSyncChip('Synced as '+((fb.user&&fb.user.email)||'you'), 'ok');
+}
+
 function initFirebase(){
   var cfg=getFbConfig();
   document.getElementById('fbConfig').value = cfg ? JSON.stringify(cfg,null,2) : '';
   if(!cfg || !window.firebase){ setSyncChip('On this device only'); updateSyncBanner(); return; }
   try{
-    if(!fb.app){
-      fb.app=firebase.initializeApp(cfg);
-      firebase.firestore().enablePersistence({synchronizeTabs:true}).catch(function(){});
-    }
+    if(!fb.app) fb.app=firebase.initializeApp(cfg);
+    setupFirestore();
+    firebase.auth().getRedirectResult().catch(function(err){
+      if(err && err.code!=='auth/popup-closed-by-user') setSyncChip(authErrorMessage(err), 'warn');
+    });
     firebase.auth().onAuthStateChanged(function(user){
       fb.user=user;
       var btn=document.getElementById('authBtn');
@@ -1324,35 +1419,42 @@ function initFirebase(){
 function listenRemote(){
   if(!fb.user) return;
   if(fb.unsub) fb.unsub();
-  fb.unsub=firebase.firestore().collection('users').doc(fb.user.uid).onSnapshot(function(doc){
-    if(!doc.exists){ pushRemote(); return; }
-    var remote=doc.data()||{};
-    if(!remote.state) return;
-    if(remote.clientId && remote.clientId===window.__wpClient) return;
-    applyingRemote=true;
-    state=Object.assign(defaultState(), remote.state, {
-      settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
-      budget: Object.assign(defaultState().budget, (remote.state.budget||{}))
-    });
-    persistLocal();
-    applyingRemote=false;
-    refreshAll();
-  }, function(err){ setSyncChip('Sync error: '+err.code, 'warn'); });
+  var ref=userDoc();
+  ref.get({source:'server'}).then(applyRemoteDoc).catch(function(){
+    return ref.get().then(applyRemoteDoc);
+  });
+  fb.unsub=ref.onSnapshot({includeMetadataChanges:true}, applyRemoteDoc, function(err){
+    setSyncChip('Sync error: '+err.code, 'warn');
+  });
 }
 
 window.__wpClient = uid();
 var pushTimer=null;
-function pushRemote(){
+function pushRemote(immediate){
   if(!fb.user) return;
   clearTimeout(pushTimer);
-  pushTimer=setTimeout(function(){
-    firebase.firestore().collection('users').doc(fb.user.uid).set({
+  var write=function(){
+    setSyncChip('Saving…', 'warn');
+    userDoc().set({
       state: state,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       clientId: window.__wpClient
+    }).then(function(){
+      setSyncChip('Synced as '+((fb.user&&fb.user.email)||'you'), 'ok');
     }).catch(function(err){ setSyncChip('Save failed: '+err.code, 'warn'); });
-  }, 280);
+  };
+  if(immediate) write();
+  else pushTimer=setTimeout(write, 80);
 }
+
+document.addEventListener('visibilitychange', function(){
+  if(!fb.user || !window.firebase) return;
+  if(document.hidden) pushRemote(true);
+  else {
+    try{ setupFirestore().enableNetwork(); }catch(e){}
+    listenRemote();
+  }
+});
 
 function refreshAll(){
   fillForms();
@@ -1420,7 +1522,10 @@ document.querySelectorAll('.chip').forEach(function(c){
     document.getElementById('chatInput').focus();
   });
 });
-document.getElementById('gotoFirebase').addEventListener('click', function(){ switchView('settings'); });
+document.getElementById('gotoFirebase').addEventListener('click', function(){
+  if(getFbConfig()) startGoogleSignIn();
+  else switchView('settings');
+});
 document.getElementById('themeToggle').addEventListener('click', function(){
   var next=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
   state.settings.theme=next; saveState(); applyTheme(next);
@@ -1518,14 +1623,7 @@ document.getElementById('resetBtn').addEventListener('click', function(){
     saveState(); initAll();
   }
 });
-document.getElementById('authBtn').addEventListener('click', function(){
-  if(!getFbConfig()){ switchView('settings'); alert('Paste your Firebase config in Settings first.'); return; }
-  if(fb.user){ firebase.auth().signOut(); return; }
-  var provider=new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithPopup(provider).catch(function(){
-    return firebase.auth().signInWithRedirect(provider);
-  });
-});
+document.getElementById('authBtn').addEventListener('click', startGoogleSignIn);
 
 function initAll(){
   var theme=state.settings.theme;
