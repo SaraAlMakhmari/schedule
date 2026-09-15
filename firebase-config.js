@@ -1,4 +1,7 @@
-/* Public Firebase web config (safe in the browser). Hosted at GitHub Pages. */
+/* Firebase *web* config. The apiKey is a public client identifier, not a
+   private server secret — every Firebase website ships it. Access is limited
+   by Google Cloud key restrictions (HTTP referrers + API allowlist) plus
+   Firestore security rules. Do not put service-account JSON or Anthropic keys here. */
 window.WEEKPLAN_FIREBASE = {
   apiKey: "AIzaSyCIENLLWGbM0iBbqqfsFL6sabKMPDYAl18",
   authDomain: "my-schedule-app-b68ca.firebaseapp.com",

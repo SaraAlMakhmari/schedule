@@ -130,6 +130,19 @@
   .modal-back{position:fixed;inset:0;background:rgba(20,20,16,.45);z-index:50;display:flex;align-items:center;justify-content:center;padding:20px;}
   .modal-back[hidden]{display:none !important;}
   .modal-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:440px;width:100%;padding:20px 22px;max-height:82vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.18);}
+  .modal-card.onboard{max-width:480px;}
+  #onboardModal{z-index:60;}
+  .ob-progress{font-size:.72rem;color:var(--text-soft);margin-bottom:10px;letter-spacing:.04em;text-transform:uppercase;}
+  .ob-opts{display:flex;flex-direction:column;gap:8px;margin:14px 0 18px;}
+  .ob-opt{
+    text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:12px 14px;color:var(--text);width:100%;
+  }
+  .ob-opt:hover{border-color:var(--accent-text);}
+  .ob-opt.on{background:var(--accent-soft);border-color:var(--accent-text);color:var(--accent-text);}
+  .ob-opt .lbl{display:block;font-weight:600;font-size:.9rem;}
+  .ob-opt .sub{display:block;margin-top:3px;font-size:.76rem;font-weight:400;color:var(--text-soft);}
+  .ob-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:space-between;align-items:center;}
   .modal-card h3{margin-bottom:4px;}
   .modal-card .when{color:var(--text-soft);font-size:.86rem;margin-bottom:12px;}
   .modal-dl{display:grid;grid-template-columns:88px 1fr;gap:6px 10px;font-size:.86rem;margin:12px 0 16px;}
@@ -173,6 +186,19 @@
   .msg{font-size:.84rem;line-height:1.4;padding:8px 10px;border-radius:var(--radius-sm);max-width:94%;}
   .msg.user{align-self:flex-end;background:var(--accent);color:var(--on-accent);}
   .msg.assistant{align-self:flex-start;background:var(--bg-soft);border:1px solid var(--border);}
+  .msg.thinking{display:flex;align-items:center;gap:10px;min-height:36px;color:var(--text-soft);}
+  .think-dots{display:flex;gap:5px;align-items:center;}
+  .think-dots i{
+    width:7px;height:7px;border-radius:50%;background:var(--accent-text);opacity:.25;
+    animation:thinkBounce 1.05s ease-in-out infinite;
+  }
+  .think-dots i:nth-child(2){animation-delay:.15s;}
+  .think-dots i:nth-child(3){animation-delay:.3s;}
+  .think-label{font-size:.78rem;}
+  @keyframes thinkBounce{
+    0%,80%,100%{transform:translateY(0);opacity:.25;}
+    40%{transform:translateY(-4px);opacity:1;}
+  }
   .chat-input{display:flex;border-top:1px solid var(--border);flex:none;}
   .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:88px;color:var(--text);}
   .chat-input button{border:none;background:none;color:var(--accent-text);font-weight:600;padding:0 14px;}
@@ -385,23 +411,33 @@
         <button class="btn secondary" id="savePlaces" type="button">Save places</button>
       </div>
       <div class="card">
-        <h3>Free AI agent</h3>
-        <p class="sub" style="margin-bottom:10px;"><strong>GitHub cannot run Ollama.</strong> GitHub only hosts the website. Ollama stays on your Mac. The live HTTPS site often cannot call <code>http://127.0.0.1</code>, so the app used Gemini. Pick Ollama below and open the planner as a local page on this Mac.</p>
+        <h3>Your agent</h3>
+        <p class="sub" style="margin-bottom:10px;">Ollama can stay on this Mac and the phone can use that same model. The phone must <strong>not</strong> use the GitHub HTTPS site for chat — the browser blocks http Ollama. On the Mac run <code>./mac-ollama.sh</code>, then on the phone open the <code>http://…:5500</code> address it prints (same Wi‑Fi, Mac awake). Sign-in still syncs memory.</p>
         <div class="grid-form">
-          <div><label>Agent</label>
+          <div><label>Brain</label>
             <select id="s_agent">
-              <option value="ollama">Ollama only (this Mac, free)</option>
-              <option value="auto">Auto (Ollama → Gemini → on-device)</option>
-              <option value="gemini">Gemini free tier</option>
-              <option value="webllm">On-device in this tab</option>
+              <option value="ollama">Ollama on the Mac (phone via Mac’s http page)</option>
+              <option value="gemini">Cloud Gemini (works on github.io, weaker for you)</option>
+              <option value="auto">Ollama if reachable, else Gemini</option>
+              <option value="webllm">In this tab only</option>
             </select>
           </div>
-          <div><label>Ollama URL (Mac)</label><input type="text" id="s_ollama" placeholder="http://127.0.0.1:11434"></div>
-          <div><label>Ollama model</label><input type="text" id="s_ollamaModel" placeholder="llama3.2"></div>
-          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></div>
+          <div><label>Ollama on this Mac</label><input type="text" id="s_ollama" placeholder="http://127.0.0.1:11434"></div>
+          <div><label>Ollama from the phone / HTTPS</label><input type="text" id="s_ollama_remote" placeholder="http://192.168.x.x:11434 or https://….ts.net"></div>
+          <div><label>Ollama model</label><input type="text" id="s_ollamaModel" placeholder="llama3.1:8b"></div>
+          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="AIza… fallback only" autocomplete="off"></div>
         </div>
-        <p class="sub">Mac: install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>, run <code>ollama run llama3.2</code>. To let the GitHub site talk to it, quit Ollama and start with <code>OLLAMA_ORIGINS='*' ollama serve</code>.</p>
+        <label style="margin-top:8px;">How I want the week decided</label>
+        <textarea id="s_priorities" rows="4" placeholder="Classes first, then dues, then rest…"></textarea>
+        <p class="sub" style="margin-top:8px;" id="ollamaHint"></p>
+        <p class="sub">On the Mac run <code>ollama pull llama3.1:8b</code> (or <code>qwen2.5:7b</code>) then put that name in the model field. llama3.2 is too small to plan a week. Away from home Wi‑Fi: Tailscale on Mac and iPhone, <code>tailscale serve --bg 11434</code>, paste the <code>https://</code> URL above.</p>
         <button class="btn secondary" id="saveApiKey" type="button">Save agent settings</button>
+      </div>
+      <div class="card">
+        <h3>What it remembers</h3>
+        <p class="sub" style="margin-bottom:10px;">Facts the agent should keep (home, people, preferences). Synced when you are signed in.</p>
+        <ul id="memoryList" class="sub" style="margin:0 0 12px;padding-left:1.2em;"></ul>
+        <button class="btn secondary" id="redoOnboard" type="button">Redo setup questions</button>
       </div>
       <div class="card">
         <h3>Your data</h3>
@@ -415,7 +451,7 @@
 
   <aside class="chat-pane" id="chatDrawer">
     <div class="chat-head">
-      <div>Chat<span class="sub-line" id="agentLine">Free agent — Ollama, Gemini, or on-device.</span></div>
+      <div>Chat<span class="sub-line" id="agentLine">Same agent on every signed-in device.</span></div>
       <button class="chat-close" id="chatClose" type="button" aria-label="Collapse chat">–</button>
     </div>
     <div class="chat-log" id="chatLog"></div>
@@ -433,6 +469,21 @@
       <button id="chatSend" type="button">Send</button>
     </div>
   </aside>
+  </div>
+</div>
+<div class="modal-back" id="onboardModal" hidden>
+  <div class="modal-card onboard" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+    <div class="ob-progress" id="obProgress">Setup 1 of 6</div>
+    <h3 id="obTitle">How should I run your week?</h3>
+    <p class="sub" id="obHint" style="margin-bottom:4px;"></p>
+    <div id="obBody"></div>
+    <div class="ob-actions">
+      <button class="btn secondary" type="button" id="obSkip">Skip for now</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn secondary" type="button" id="obBack">Back</button>
+        <button class="btn" type="button" id="obNext">Continue</button>
+      </div>
+    </div>
   </div>
 </div>
 <div class="modal-back" id="eventModal" hidden>
@@ -474,7 +525,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaModel:'llama3.2', agentBackend:'ollama' },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaRemoteUrl:'', ollamaModel:'llama3.1:8b', agentBackend:'ollama', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon' },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -486,6 +537,7 @@ function defaultState(){
     assignments:[],
     pendingAsk:null,
     lastEventId:null,
+    agentMemory:{ facts:[], people:{} },
     budget:{ income:0, savingsPct:20 }
   };
 }
@@ -501,8 +553,11 @@ function loadState(){
     var merged = Object.assign(d, parsed, {
       settings: Object.assign(d.settings, parsed.settings||{}),
       budget: Object.assign(d.budget, parsed.budget||{}),
-      assignments: parsed.assignments||[]
+      assignments: parsed.assignments||[],
+      agentMemory: Object.assign({facts:[], people:{}}, parsed.agentMemory||{})
     });
+    if(!merged.settings.ollamaRemoteUrl) merged.settings.ollamaRemoteUrl='';
+    if(merged.settings.ollamaModel==='llama3.2') merged.settings.ollamaModel='llama3.1:8b';
     (merged.generated||[]).forEach(function(e){
       if(!e.date && e.day) e.date = dateForDayName(e.day, weekMonday(merged.selectedDate||todayISO()));
     });
@@ -511,6 +566,7 @@ function loadState(){
 }
 
 function persistLocal(){
+  if((state.chatLog||[]).length>80) state.chatLog=state.chatLog.slice(-80);
   localStorage.setItem(STORE_KEY, JSON.stringify(state));
 }
 
@@ -1188,10 +1244,45 @@ function addTimedEventWithTravel(opts){
   return {cm:cm, fromLabel:fromLabel, ready:ready};
 }
 
+function ensureMemory(){
+  state.agentMemory=state.agentMemory||{facts:[], people:{}};
+  state.agentMemory.facts=state.agentMemory.facts||[];
+  state.agentMemory.people=state.agentMemory.people||{};
+  return state.agentMemory;
+}
+
+function rememberFact(text, who){
+  text=String(text||'').replace(/\s+/g,' ').trim();
+  if(!text) return;
+  var mem=ensureMemory();
+  if(who) mem.people[who]=text;
+  var low=text.toLowerCase();
+  mem.facts=mem.facts.filter(function(f){ return f.text.toLowerCase()!==low; });
+  mem.facts.push({id:uid(), text:text, at:Date.now()});
+  if(mem.facts.length>40) mem.facts=mem.facts.slice(-40);
+}
+
+function forgetFact(text){
+  var mem=ensureMemory();
+  var low=String(text||'').toLowerCase();
+  mem.facts=mem.facts.filter(function(f){ return f.text.toLowerCase().indexOf(low)===-1; });
+}
+
+function memoryDigest(){
+  var mem=ensureMemory();
+  var bits=[];
+  if(state.settings.homePlace) bits.push('home='+state.settings.homePlace);
+  if(state.settings.campusPlace) bits.push('campus='+state.settings.campusPlace);
+  Object.keys(mem.people||{}).forEach(function(k){ bits.push(k+': '+mem.people[k]); });
+  (mem.facts||[]).slice(-16).forEach(function(f){ bits.push(f.text); });
+  return bits.join('; ')||'(empty)';
+}
+
 function rememberHome(place){
   place=String(place||'').replace(/^["']|["']$/g,'').trim();
   if(!place) return false;
   state.settings.homePlace=place;
+  rememberFact('Home is '+place);
   saveState();
   return true;
 }
@@ -1351,6 +1442,7 @@ function handlePending(text){
     return 'Ok, dropped that. Say it again when you want.';
   }
   if(p.kind==='duration'){
+    if(!p.draft) return null;
     var ans=parseDurationAnswer(text);
     if(ans.until && p.draft.start){
       var mins=toMin(ans.until)-toMin(p.draft.start);
@@ -1364,11 +1456,29 @@ function handlePending(text){
     }
     return 'Give me a length — 2 hours, 45 min, or until 8pm.';
   }
-  if(p.kind==='withWho'){
+  if(p.kind==='withWho' || p.kind==='who'){
     var who=text.replace(/^(with|it'?s|its)\s+/i,'').trim();
     if(who.length<2) return 'Name the person or group.';
-    p.draft.who=who;
-    return continueDraft(p.draft);
+    rememberFact(who+' is a person on the week', who);
+    if(p.draft){
+      p.draft.who=who;
+      return continueDraft(p.draft);
+    }
+    var evW=lastTouchedEvent();
+    if(evW){ evW.who=who; evW.keep=true; }
+    state.pendingAsk=null;
+    saveState();
+    return 'Noted — with '+who+'. Anything else about it?';
+  }
+  if(p.kind==='where'){
+    var where=stripPlaceAnswer(text);
+    if(where.length<2) return 'Name the place.';
+    var evP=lastTouchedEvent();
+    if(evP){ evP.place=where; evP.keep=true; }
+    rememberFact((evP?evP.title+' is at ':'Place: ')+where);
+    state.pendingAsk=null;
+    saveState();
+    return 'Saved the place as '+where+'.';
   }
   if(p.kind==='flexDuration'){
     var ans2=parseDurationAnswer(text);
@@ -1408,7 +1518,7 @@ function handlePending(text){
     }
     return 'Home or class? Or name the station.';
   }
-  if(p.kind==='homePlace'){
+  if(p.kind==='home' || p.kind==='homePlace'){
     if(looksLikeNewChat(lower)){
       state.pendingAsk=null;
       saveState();
@@ -1729,7 +1839,7 @@ function sendChat(){
     saveState(); refreshAll();
     return;
   }
-  if(state.pendingAsk && looksLikeDurationOnly(text)){
+  if(state.pendingAsk && !looksLikeFreshRequest(text) && !looksLikeEdit(text.toLowerCase())){
     var pending=handlePending(text);
     if(pending){
       state.chatLog.push({role:'assistant', text:pending});
@@ -1740,13 +1850,15 @@ function sendChat(){
   if(state.pendingAsk && (looksLikeFreshRequest(text) || looksLikeEdit(text.toLowerCase()))){
     state.pendingAsk=null;
   }
-  state.chatLog.push({role:'assistant', text:'Thinking…'});
-  renderChat();
+  state.chatLog.push({role:'assistant', text:'', thinking:true, thinkLabel:'Thinking'});
+  startThinkAnim();
   callPlannerLLM(text).then(function(reply){
+    stopThinkAnim();
     state.chatLog[state.chatLog.length-1]={role:'assistant', text:reply};
     saveState(); refreshAll();
   }).catch(function(err){
-    var fallback=rambleParse(text, true) || ('Agent backends failed ('+err.message+'). Install Ollama or sign in for Gemini’s free tier.');
+    stopThinkAnim();
+    var fallback=rambleParse(text, true) || ('Couldn’t reach the cloud agent ('+err.message+'). Sign in, or add a free Gemini key in Settings. You can quit Ollama — the phone never used it.');
     state.chatLog[state.chatLog.length-1]={role:'assistant', text:fallback};
     saveState(); refreshAll();
   });
@@ -1765,13 +1877,38 @@ function canUseAgent(){
 }
 
 function recentChatBlob(){
-  return (state.chatLog||[]).slice(-12).map(function(m){
+  return (state.chatLog||[]).slice(-12).filter(function(m){ return !isThinkMsg(m) && m.text; }).map(function(m){
     return (m.role==='user'?'Sara':'Agent')+': '+m.text;
   }).join('\n');
 }
 
+function plannerContext(){
+  var monday=weekMonday(state.selectedDate);
+  var dayStart=toMin(state.settings.wake)||6*60;
+  var dayEnd=toMin(state.settings.sleep)||23*60;
+  var lines=[];
+  lines.push('Today '+todayISO()+' '+dayNameOf(todayISO())+'. Viewing week of '+monday+'.');
+  lines.push('Priorities: '+(state.settings.priorities||'(not set — ask before guessing tradeoffs)'));
+  lines.push('Memory: '+memoryDigest());
+  DAYS.forEach(function(day,i){
+    var date=addDaysISO(monday,i);
+    var evs=(state.generated||[]).filter(function(e){ return e.date===date && !e.skipped; }).slice().sort(function(a,b){ return toMin(a.start)-toMin(b.start); });
+    var busy=evs.map(function(e){ return [toMin(e.start), toMin(e.end)]; });
+    var gaps=freeFromBusy(busy, dayStart, dayEnd).filter(function(iv){ return iv[1]-iv[0]>=30; }).map(function(iv){ return fmt12(toHHMM(iv[0]))+'-'+fmt12(toHHMM(iv[1])); });
+    var evStr=evs.map(function(e){
+      return fmt12(e.start)+'-'+fmt12(e.end)+' '+e.title+(e.type?' ['+e.type+']':'')+(e.online?' online':'')+(e.who?' w/'+e.who:'')+(e.place?' @'+e.place:'');
+    }).join(', ');
+    lines.push(day+' '+date+': '+(evStr||'empty')+' | gaps: '+(gaps.join(', ')||'none'));
+  });
+  if((state.unscheduled||[]).length) lines.push('Unplaced: '+state.unscheduled.join('; '));
+  if((state.assignments||[]).length){
+    lines.push('Dues: '+(state.assignments||[]).filter(function(a){ return !a.done; }).map(function(a){ return (a.title||'')+' due '+(a.due||'?')+(a.hours?' ~'+a.hours+'h':''); }).join('; '));
+  }
+  return lines.join('\n');
+}
+
 function plannerSchema(){
-  return 'Return ONLY minified JSON: {"reply":string,"actions":[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]} You are a multi-turn scheduling AGENT. The latest user line is a turn in an ongoing conversation, not a brand-new calendar dump. If they correct type/time/title, op update the EXISTING event — never add a duplicate. If they already answered a duration, finish that event. Online/zoom/mentor meetings: type meeting, online true, NO commute, NO get-ready. Short titles (Meeting (Online), Bouldering @ Noborock Shibuya). Times HH:MM 24h. If duration is still unknown, ask in reply and emit ZERO add actions.';
+  return 'Return ONLY minified JSON: {"think":string,"reply":string,"ask":null|{"kind":"duration"|"when"|"who"|"where"|"leaveFrom"|"home","topic":string},"actions":[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home"|"remember"|"forget","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]} You are Sara’s scheduling agent at Science Tokyo. '+plannerContext()+'\nRULES: (1) Use think to decide meaning, conflicts, which gap to use, what to protect. (2) Latest line is a turn — corrections update, never duplicate. (3) ASK, do not invent clock times. Missing day/time/duration/who/place → ask, zero add. (4) Place using listed gaps. Classes/dues > hangouts. Online/zoom: type meeting, online true, no commute. (5) Short titles. Times HH:MM 24h. (6) If she asks to plan/prioritize, propose a coherent day using gaps, then emit actions.';
 }
 
 function weekDigest(){
@@ -1786,20 +1923,147 @@ function applyPlannerJSON(textOut){
     if(!m) return textOut||'Could not parse.';
     try{ parsed=JSON.parse(m[0]); }catch(e2){ return textOut||'Could not parse.'; }
   }
-  applyActions(parsed.actions||[]);
-  return parsed.reply||'Done.';
+  var actions=parsed.actions||[];
+  var ask=parsed.ask||null;
+  actions=filterGuessedAdds(actions, ask);
+  applyActions(actions);
+  if(ask && ask.kind){
+    state.pendingAsk={kind:ask.kind==='who'?'withWho':ask.kind, topic:ask.topic||'', fromAgent:true, draft:state.pendingAsk&&state.pendingAsk.draft};
+  }
+  var reply=String(parsed.reply||'').trim();
+  reply=maybeAskAfterAdd(reply, actions, ask);
+  return reply||'Done.';
+}
+
+function followUpPrompt(ask){
+  var t=ask.topic||'that';
+  if(ask.kind==='duration') return 'How long is '+t+'?';
+  if(ask.kind==='when') return 'What day and time is '+t+'?';
+  if(ask.kind==='who' || ask.kind==='withWho') return 'Who is '+t+' with?';
+  if(ask.kind==='where') return 'Where is '+t+'?';
+  if(ask.kind==='leaveFrom') return 'Are you leaving from home or from class for '+t+'?';
+  if(ask.kind==='home') return 'Where is home / which station?';
+  return 'Can you fill in the missing detail for '+t+'?';
+}
+
+function filterGuessedAdds(actions, ask){
+  if(!ask || !ask.kind) return actions;
+  if(ask.kind==='when' || ask.kind==='duration'){
+    return actions.filter(function(a){ return a.op!=='add'; });
+  }
+  return actions;
+}
+
+function maybeAskAfterAdd(reply, actions, ask){
+  if(ask && ask.kind){
+    if(reply.indexOf('?')===-1) reply=(reply?reply+' ':'')+followUpPrompt(ask);
+    return reply;
+  }
+  var ev=lastTouchedEvent();
+  var added=(actions||[]).some(function(a){ return a.op==='add' || a.op==='update'; });
+  if(!ev || !added) return reply;
+  if((ev.type==='meeting' || ev.online) && !ev.who){
+    state.pendingAsk={kind:'withWho', topic:ev.title, fromAgent:true};
+    if(reply.indexOf('?')===-1) reply=(reply?reply+' ':'')+'Who is that with?';
+    return reply;
+  }
+  if((ev.type==='outing'||ev.type==='hangout'||ev.type==='workout') && !ev.place && !ev.online){
+    state.pendingAsk={kind:'where', topic:ev.title, fromAgent:true};
+    if(reply.indexOf('?')===-1) reply=(reply?reply+' ':'')+'Where is that?';
+    return reply;
+  }
+  if(!state.settings.homePlace && ev.type!=='meeting' && !ev.online){
+    state.pendingAsk={kind:'home', topic:'home', fromAgent:true};
+    if(reply.indexOf('?')===-1) reply=(reply?reply+' ':'')+'Where is home so I can plan the commute?';
+  }
+  return reply;
+}
+
+var thinkTimer=null;
+var thinkPhase=0;
+var THINK_LABELS=['Reading your week','Checking gaps','Drafting a question'];
+
+function isThinkMsg(m){
+  if(!m) return false;
+  if(m.thinking) return true;
+  var t=m.text||'';
+  return t==='Thinking…' || /^Agent:/.test(t) || /^Ollama/.test(t) || /^On-device/.test(t) || /^Loading /.test(t);
+}
+
+function thinkMarkup(label){
+  return '<div class="msg assistant thinking"><span class="think-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="think-label">'+escapeHtml(label||'Thinking')+'</span></div>';
+}
+
+function stopThinkAnim(){
+  if(thinkTimer){ clearInterval(thinkTimer); thinkTimer=null; }
+  var line=document.getElementById('agentLine');
+  if(line) line.textContent='Same agent on every signed-in device.';
+}
+
+function startThinkAnim(){
+  stopThinkAnim();
+  thinkPhase=0;
+  var last=state.chatLog[state.chatLog.length-1];
+  if(last && last.role==='assistant'){
+    last.thinking=true;
+    last.text='';
+    last.thinkLabel=THINK_LABELS[0];
+  }
+  renderChat();
+  var line=document.getElementById('agentLine');
+  if(line) line.textContent='Thinking';
+  thinkTimer=setInterval(function(){
+    thinkPhase=(thinkPhase+1)%THINK_LABELS.length;
+    var msg=state.chatLog[state.chatLog.length-1];
+    if(!msg || !msg.thinking){ stopThinkAnim(); return; }
+    msg.thinkLabel=THINK_LABELS[thinkPhase];
+    renderChat();
+  }, 900);
 }
 
 function setThinking(msg){
   var last=state.chatLog[state.chatLog.length-1];
-  if(last && last.role==='assistant') last.text=msg;
-  renderChat();
-  var line=document.getElementById('agentLine');
-  if(line) line.textContent=msg.length<60?msg:'Free agent running…';
+  if(last && last.role==='assistant' && last.thinking){
+    if(msg && !/^Agent:/.test(msg) && !/^Ollama/.test(msg)) last.thinkLabel=msg;
+    renderChat();
+    return;
+  }
+  startThinkAnim();
+}
+
+function isLoopbackUrl(u){
+  return /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:|\/|$)/i.test(String(u||'').trim());
 }
 
 function ollamaBase(){
-  return (state.settings.ollamaUrl||'http://127.0.0.1:11434').replace(/\/$/,'');
+  var remote=(state.settings.ollamaRemoteUrl||'').trim().replace(/\/$/,'');
+  var local=(state.settings.ollamaUrl||'http://127.0.0.1:11434').replace(/\/$/,'');
+  var host=location.hostname;
+  var pageHttp=location.protocol==='http:';
+  var lanHost=host && host!=='localhost' && host!=='127.0.0.1' && !/\.github\.io$/i.test(host);
+  if(location.protocol==='https:'){
+    if(remote && /^https:/i.test(remote)) return remote;
+    return remote || local;
+  }
+  if(pageHttp && lanHost){
+    if(remote && !isLoopbackUrl(remote)) return remote;
+    return 'http://'+host+':11434';
+  }
+  if(remote && !isLoopbackUrl(remote) && (host==='localhost' || host==='127.0.0.1')) return local;
+  return local;
+}
+
+function updateOllamaHint(){
+  var el=document.getElementById('ollamaHint');
+  if(!el) return;
+  var target=ollamaBase();
+  var bits=['This tab will call '+target+'.'];
+  if(location.protocol==='https:' && !/^https:/i.test(target)){
+    bits.push('GitHub Pages is HTTPS, so the phone browser will block this http URL. Open the Mac’s http:// page on the phone instead, or paste a Tailscale https:// URL.');
+  } else if(location.protocol==='http:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
+    bits.push('You are on the Mac-hosted page — this is the setup the phone should use.');
+  }
+  el.textContent=bits.join(' ');
 }
 
 function probeOllama(){
@@ -1807,10 +2071,10 @@ function probeOllama(){
 }
 
 function agentMessages(userText){
-  var sys=plannerSchema()+' Home: '+(state.settings.homePlace||'unknown')+'. Campus: '+(state.settings.campusPlace||'Ookayama')+'. Today is '+todayISO()+' (a '+dayNameOf(todayISO())+'). Current events: '+weekDigest()+'.';
+  var sys=plannerSchema();
   var msgs=[{role:'system', content:sys}];
-  (state.chatLog||[]).slice(-10).forEach(function(m){
-    if(m.text==='Thinking…' || /^Loading /.test(m.text)) return;
+  (state.chatLog||[]).slice(-12).forEach(function(m){
+    if(isThinkMsg(m) || !m.text) return;
     msgs.push({role:m.role==='user'?'user':'assistant', content:m.text});
   });
   if(!msgs.length || msgs[msgs.length-1].content!==userText){
@@ -1820,57 +2084,75 @@ function agentMessages(userText){
 }
 
 function ollamaBlockedReason(){
-  if(location.protocol==='https:' && /github\.io$/i.test(location.hostname)){
-    return 'This GitHub Pages tab is HTTPS, so the browser blocks Ollama on http://127.0.0.1. GitHub has nothing to turn on for that. On this Mac: open the planner from a local http:// page (not github.io), keep Ollama running, Agent = Ollama only.';
+  var target=ollamaBase();
+  if(location.protocol==='https:' && !/^https:/i.test(target)){
+    return 'This HTTPS tab cannot talk to Ollama at '+target+'. On the phone open the http:// address from ./mac-ollama.sh (same Wi‑Fi), not github.io. For campus/cellular, Tailscale + an https:// Ollama URL in Settings.';
   }
-  return 'This tab could not reach Ollama at '+ollamaBase()+'. Keep the llama in the menu bar running. If you already saw “address already in use”, that is fine — do not start a second serve.';
+  return 'Could not reach Ollama at '+target+'. On the Mac: quit the menu-bar llama, then run ./mac-ollama.sh so it listens on the Wi‑Fi, not only 127.0.0.1. Keep the Mac awake.';
 }
 
 function callPlannerLLM(userText){
   var key=(state.settings.apiKey||'').trim();
   var mode=state.settings.agentBackend||'ollama';
+  startThinkAnim();
   if(key.indexOf('sk-ant')===0 && mode!=='ollama') return callClaude(userText);
+  if(mode==='webllm') return callWebLLM(userText);
   if(mode==='gemini'){
-    setThinking('Agent: Gemini…');
-    return callGemini(userText);
+    if(geminiKey()) return callGemini(userText);
+    return Promise.reject(new Error('No Gemini key. Pick Ollama, or paste an AI Studio key.'));
   }
-  if(mode==='webllm'){
-    setThinking('Agent: on-device model…');
-    return callWebLLM(userText);
-  }
-  return probeOllama().then(function(ok){
-    if(ok){
-      setThinking('Agent: Ollama on this Mac…');
-      return callOllama(userText);
-    }
-    if(mode==='ollama'){
-      return Promise.reject(new Error(ollamaBlockedReason()));
-    }
-    if(geminiKey() && (fb.user || key)){
-      setThinking('Ollama not reachable — Gemini free tier…');
-      return callGemini(userText);
-    }
-    setThinking('Ollama not reachable — on-device model…');
-    return callWebLLM(userText);
+  var tryOllama=function(){
+    return probeOllama().then(function(ok){
+      if(ok) return callOllama(userText);
+      if(mode==='ollama') return Promise.reject(new Error(ollamaBlockedReason()));
+      if(geminiKey()) return callGemini(userText);
+      return callWebLLM(userText);
+    });
+  };
+  return tryOllama();
+}
+
+function ollamaChat(messages, opts){
+  opts=opts||{};
+  var model=state.settings.ollamaModel||'llama3.1:8b';
+  var body={
+    model:model,
+    stream:false,
+    messages:messages,
+    options:{ temperature: opts.temperature!=null?opts.temperature:0.2, num_predict: opts.num_predict||900 }
+  };
+  if(opts.json) body.format='json';
+  return fetch(ollamaBase()+'/api/chat', {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(r){
+    if(!r.ok) return r.text().then(function(t){ throw new Error('Ollama '+r.status+' '+t.slice(0,160)); });
+    return r.json();
+  }).then(function(data){
+    return (data.message&&data.message.content)||'';
   });
 }
 
 function callOllama(userText){
-  var model=state.settings.ollamaModel||'llama3.2';
-  return fetch(ollamaBase()+'/api/chat', {
-    method:'POST',
-    headers:{'content-type':'application/json'},
-    body: JSON.stringify({
-      model:model,
-      stream:false,
-      format:'json',
-      messages:agentMessages(userText)
-    })
-  }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){ throw new Error('Ollama '+r.status+' '+t.slice(0,120)); });
-    return r.json();
-  }).then(function(data){
-    var textOut=(data.message&&data.message.content)||'';
+  var history=[];
+  (state.chatLog||[]).slice(-10).forEach(function(m){
+    if(isThinkMsg(m) || !m.text) return;
+    history.push({role:m.role==='user'?'user':'assistant', content:m.text});
+  });
+  if(!history.length || history[history.length-1].content!==userText){
+    history.push({role:'user', content:userText});
+  }
+  var reasonMsgs=[{role:'system', content:'You are Sara’s week planner (Science Tokyo). Do not output JSON yet. In 8–15 short lines: what she meant; what is already on the week; conflicts; which listed gaps you would use; what to ask; what to protect (sleep, class, dues). Follow her priorities. Never invent a time that is not in the message or in a gap.\n\n'+plannerContext()}].concat(history);
+  setThinking('Looking at the week');
+  return ollamaChat(reasonMsgs, {json:false, temperature:0.35, num_predict:450}).then(function(think){
+    setThinking('Turning that into the calendar');
+    var jsonMsgs=[
+      {role:'system', content:plannerSchema()+'\nYour notes (obey these, do not ignore gaps):\n'+(think||'').slice(0,2500)},
+      {role:'user', content:'User: '+userText+'\nJSON only.'}
+    ];
+    return ollamaChat(jsonMsgs, {json:true, temperature:0.1, num_predict:1200});
+  }).then(function(textOut){
     return applyPlannerJSON(textOut);
   });
 }
@@ -1907,7 +2189,7 @@ function callWebLLM(userText){
 
 function callGemini(userText){
   var key=geminiKey();
-  var prompt='You are Sara’s weekly planning agent (Science Tokyo). Multi-turn. Do not treat a correction as a new event. Home: '+(state.settings.homePlace||'unknown')+'. Campus: '+(state.settings.campusPlace||'Ookayama')+'. Current events: '+weekDigest()+'.\n\nRecent chat:\n'+recentChatBlob()+'\n\n'+plannerSchema();
+  var prompt='You are Sara’s weekly planning agent (Science Tokyo). Multi-turn. Think, then JSON. Ask follow-ups instead of guessing. Memory+week:\n'+plannerContext()+'\n\nRecent chat:\n'+recentChatBlob()+'\n\n'+plannerSchema();
   return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key), {
     method:'POST',
     headers:{'content-type':'application/json'},
@@ -1916,7 +2198,10 @@ function callGemini(userText){
       generationConfig:{responseMimeType:'application/json', maxOutputTokens:1200}
     })
   }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+' '+t.slice(0,160)); });
+    if(!r.ok) return r.text().then(function(t){
+      if(r.status===403 || r.status===400) throw new Error('Cloud model refused the key. Settings → paste a free Gemini key from aistudio.google.com/apikey (Ollama is not required).');
+      throw new Error('HTTP '+r.status+' '+t.slice(0,160));
+    });
     return r.json();
   }).then(function(data){
     var textOut=((((data.candidates||[])[0]||{}).content||{}).parts||[]).map(function(p){return p.text||'';}).join('');
@@ -1953,6 +2238,12 @@ function applyActions(actions){
     if(a.op==='regenerate'){ generateSchedule(weekMonday(state.selectedDate)); return; }
     if(a.op==='home' && (a.homePlace||a.note||a.title)){
       rememberHome(a.homePlace||a.note||a.title);
+    }
+    if(a.op==='remember' && (a.note||a.title||a.who)){
+      rememberFact(a.note||a.title, a.who);
+    }
+    if(a.op==='forget' && (a.note||a.title)){
+      forgetFact(a.note||a.title);
     }
     if(a.op==='rhythm'){
       if(a.wake) state.settings.wake=a.wake;
@@ -2214,6 +2505,7 @@ function closeEventDetail(){
 function renderChat(){
   var log=document.getElementById('chatLog');
   log.innerHTML=state.chatLog.map(function(m){
+    if(m.thinking) return thinkMarkup(m.thinkLabel||'Thinking');
     return '<div class="msg '+m.role+'">'+escapeHtml(m.text).replace(/\n/g,'<br>')+'</div>';
   }).join('');
   log.scrollTop=log.scrollHeight;
@@ -2472,11 +2764,13 @@ function applyRemoteDoc(doc){
     state=Object.assign(defaultState(), remote.state, {
       settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
       budget: Object.assign(defaultState().budget, (remote.state.budget||{})),
-      assignments: remote.state.assignments||[]
+      assignments: remote.state.assignments||[],
+      agentMemory: Object.assign({facts:[], people:{}}, (remote.state.agentMemory||{}))
     });
   persistLocal();
   applyingRemote=false;
   refreshAll();
+  maybeOnboard();
   if(meta.fromCache) setSyncChip('Updating from cloud…', 'warn');
   else setSyncChip('Synced as '+((fb.user&&fb.user.email)||'you'), 'ok');
 }
@@ -2555,6 +2849,7 @@ document.addEventListener('visibilitychange', function(){
 function refreshAll(){
   fillForms();
   renderFixedList(); renderFlexList(); renderCalendar(); renderUnscheduled(); renderChat(); renderBudget();
+  renderMemory();
 }
 
 function fillForms(){
@@ -2570,10 +2865,25 @@ function fillForms(){
   var ou=document.getElementById('s_ollama');
   var om=document.getElementById('s_ollamaModel');
   var ag=document.getElementById('s_agent');
+  var or=document.getElementById('s_ollama_remote');
   if(ou) ou.value=state.settings.ollamaUrl||'http://127.0.0.1:11434';
-  if(om) om.value=state.settings.ollamaModel||'llama3.2';
+  if(or) or.value=state.settings.ollamaRemoteUrl||'';
+  if(om) om.value=state.settings.ollamaModel||'llama3.1:8b';
   if(ag) ag.value=state.settings.agentBackend||'ollama';
+  var pr=document.getElementById('s_priorities');
+  if(pr) pr.value=state.settings.priorities||'';
   document.getElementById('e_date').value=todayISO();
+  updateOllamaHint();
+}
+
+function renderMemory(){
+  var el=document.getElementById('memoryList');
+  if(!el) return;
+  var mem=ensureMemory();
+  var items=[];
+  if(state.settings.homePlace) items.push('Home: '+state.settings.homePlace);
+  (mem.facts||[]).forEach(function(f){ items.push(f.text); });
+  el.innerHTML=items.length ? items.map(function(t){ return '<li>'+escapeHtml(t)+'</li>'; }).join('') : '<li>Nothing lasting yet — tell chat where home is, who people are, etc.</li>';
 }
 
 function buildDayChecks(containerId, name){
@@ -2706,11 +3016,16 @@ document.getElementById('saveApiKey').addEventListener('click', function(){
   state.settings.apiKey=document.getElementById('apiKey').value.trim();
   var ou=document.getElementById('s_ollama');
   var om=document.getElementById('s_ollamaModel');
+  var or=document.getElementById('s_ollama_remote');
   if(ou) state.settings.ollamaUrl=ou.value.trim()||'http://127.0.0.1:11434';
-  if(om) state.settings.ollamaModel=om.value.trim()||'llama3.2';
+  if(or) state.settings.ollamaRemoteUrl=or.value.trim();
+  if(om) state.settings.ollamaModel=om.value.trim()||'llama3.1:8b';
+  var pr=document.getElementById('s_priorities');
+  if(pr) state.settings.priorities=pr.value.trim();
   var ag=document.getElementById('s_agent');
   if(ag) state.settings.agentBackend=ag.value||'ollama';
   saveState();
+  updateOllamaHint();
 });
 document.getElementById('saveFb').addEventListener('click', function(){
   try{
@@ -2744,7 +3059,196 @@ document.getElementById('resetBtn').addEventListener('click', function(){
     saveState(); initAll();
   }
 });
+var ONBOARD_STEPS=[
+  {id:'intro', title:'How should I run your week?', hint:'A few tradeoffs so the agent does not guess what matters. You can redo this in Settings.'},
+  {id:'wins', title:'When the week is full, what wins?', hint:'Pick the default. You can always override in chat.', options:[
+    {id:'class', label:'Classes and deadlines', sub:'Hangouts and extra workouts move first.'},
+    {id:'rest', label:'Sleep and recovery', sub:'Protect nights even if that means fewer plans.'},
+    {id:'social', label:'Friends and fun', sub:'Keep social time unless a deadline is close.'},
+    {id:'ask', label:'Ask me every time', sub:'Do not drop or stack things without a question.'}
+  ]},
+  {id:'studyBand', title:'Untimed study and chores — when?', hint:'Used when you do not give a clock time.', options:[
+    {id:'morning', label:'Morning', sub:'Before class or work when possible.'},
+    {id:'afternoon', label:'Afternoon', sub:'Gaps after class — the usual student default.'},
+    {id:'evening', label:'Evening', sub:'After dinner, not crack of dawn.'}
+  ]},
+  {id:'packed', title:'If a day is already packed?', hint:'Spontaneous dumps need a rule.', options:[
+    {id:'shift', label:'Shift flexible stuff', sub:'Move study/chores to another gap. Keep class.'},
+    {id:'drop', label:'Drop the lowest priority', sub:'Say what you dropped. Do not hide it at 7am.'},
+    {id:'ask', label:'Ask before changing', sub:'Propose, wait for yes.'}
+  ]},
+  {id:'ramble', title:'When you dump a ramble?', hint:'Meetings, bouldering, quiz, no times…', options:[
+    {id:'place', label:'Place what you can, then ask', sub:'Use free gaps. Ask only for missing time/who/place.'},
+    {id:'ask', label:'Ask first, then place', sub:'No blocks until the important details are in.'}
+  ]},
+  {id:'rhythm', title:'Sleep target and home', hint:'Home is optional — a station is enough.'}
+];
+
+var onboard={step:0, draft:{wins:'class', studyBand:'afternoon', packed:'shift', ramble:'place', sleepHours:8, home:''}, force:false};
+
+function appLooksUsed(){
+  return !!(
+    (state.generated||[]).length ||
+    (state.fixed||[]).length ||
+    (state.flexible||[]).length ||
+    (state.assignments||[]).length ||
+    (state.chatLog||[]).some(function(m){ return m.role==='user'; }) ||
+    (state.settings.priorities&&state.settings.priorities.length>20)
+  );
+}
+
+function shouldOnboard(){
+  if(onboard.force) return true;
+  if(state.settings.onboardingDone) return false;
+  if(appLooksUsed()){
+    state.settings.onboardingDone=true;
+    persistLocal();
+    return false;
+  }
+  return true;
+}
+
+function composePriorities(t){
+  t=t||state.settings.tradeoffs||{};
+  var wins={
+    class:'Classes and deadlines beat hangouts and extra workouts.',
+    rest:'Protect sleep and recovery even if that means fewer hangouts.',
+    social:'Keep social and fun unless a deadline is close.',
+    ask:'If the week is full, ask before dropping or stacking anything.'
+  }[t.wins]||'Classes and deadlines beat hangouts.';
+  var band={morning:'morning', afternoon:'afternoon', evening:'evening'}[t.studyBand]||'afternoon';
+  var packed={
+    shift:'If a day is packed, shift flexible study/chores to another gap. Never invent 7am junk.',
+    drop:'If a day is packed, drop the lowest-priority flexible block and say so.',
+    ask:'If a day is packed, propose a change and wait for yes.'
+  }[t.packed]||'';
+  var ramble={
+    place:'When she rambles, split items, place what you can in listed gaps, then ask for missing time/who/place.',
+    ask:'When she rambles, ask for missing details before adding blocks.'
+  }[t.ramble]||'';
+  var sleep='Protect about '+(t.sleepHours||8)+'h of sleep.';
+  return [wins, 'Prefer untimed study/chores in the '+band+'.', packed, ramble, sleep, 'Online meetings: no commute, no get-ready. Never invent a clock time that is not in the message or a listed gap.'].filter(Boolean).join(' ');
+}
+
+function hideOnboard(){
+  var el=document.getElementById('onboardModal');
+  if(el) el.hidden=true;
+  onboard.force=false;
+}
+
+function showOnboard(force){
+  onboard.force=!!force;
+  onboard.step=0;
+  onboard.draft={
+    wins:(state.settings.tradeoffs&&state.settings.tradeoffs.wins)||'class',
+    studyBand:state.settings.preferBand||'afternoon',
+    packed:(state.settings.tradeoffs&&state.settings.tradeoffs.packed)||'shift',
+    ramble:(state.settings.tradeoffs&&state.settings.tradeoffs.ramble)||'place',
+    sleepHours:state.settings.sleepHours||8,
+    home:state.settings.homePlace||''
+  };
+  renderOnboard();
+  document.getElementById('onboardModal').hidden=false;
+}
+
+function renderOnboard(){
+  var step=ONBOARD_STEPS[onboard.step];
+  var n=ONBOARD_STEPS.length;
+  document.getElementById('obProgress').textContent='Setup '+(onboard.step+1)+' of '+n;
+  document.getElementById('obTitle').textContent=step.title;
+  document.getElementById('obHint').textContent=step.hint||'';
+  document.getElementById('obBack').hidden=onboard.step===0;
+  document.getElementById('obNext').textContent=onboard.step===n-1?'Save and start':'Continue';
+  var body=document.getElementById('obBody');
+  if(step.options){
+    body.innerHTML='<div class="ob-opts">'+(step.options.map(function(o){
+      var on=onboard.draft[step.id]===o.id?' on':'';
+      return '<button type="button" class="ob-opt'+on+'" data-id="'+o.id+'"><span class="lbl">'+escapeHtml(o.label)+'</span><span class="sub">'+escapeHtml(o.sub)+'</span></button>';
+    }).join(''))+'</div>';
+    body.querySelectorAll('.ob-opt').forEach(function(b){
+      b.addEventListener('click', function(){
+        onboard.draft[step.id]=b.getAttribute('data-id');
+        renderOnboard();
+      });
+    });
+  } else if(step.id==='rhythm'){
+    body.innerHTML='<div class="ob-opts">'+[6,7,8,9].map(function(h){
+      var on=onboard.draft.sleepHours===h?' on':'';
+      return '<button type="button" class="ob-opt'+on+'" data-h="'+h+'"><span class="lbl">'+h+' hours of sleep</span></button>';
+    }).join('')+'</div><label>Home (station / neighborhood)</label><input type="text" id="obHome" placeholder="Optional — e.g. Jiyugaoka">';
+    body.querySelectorAll('.ob-opt').forEach(function(b){
+      b.addEventListener('click', function(){
+        onboard.draft.sleepHours=+b.getAttribute('data-h');
+        var homeEl=document.getElementById('obHome');
+        if(homeEl) onboard.draft.home=homeEl.value;
+        renderOnboard();
+        var again=document.getElementById('obHome');
+        if(again){ again.value=onboard.draft.home||''; again.focus(); }
+      });
+    });
+    var home=document.getElementById('obHome');
+    if(home){
+      home.value=onboard.draft.home||'';
+      home.addEventListener('input', function(){ onboard.draft.home=home.value; });
+    }
+  } else {
+    body.innerHTML='';
+  }
+}
+
+function finishOnboard(skipped){
+  var t=onboard.draft;
+  if(skipped && !state.settings.tradeoffs){
+    t={wins:'class', studyBand:'afternoon', packed:'shift', ramble:'place', sleepHours:8, home:state.settings.homePlace||''};
+  }
+  var homeEl=document.getElementById('obHome');
+  if(homeEl) t.home=homeEl.value.trim();
+  state.settings.tradeoffs={wins:t.wins, studyBand:t.studyBand, packed:t.packed, ramble:t.ramble, sleepHours:t.sleepHours};
+  state.settings.preferBand=t.studyBand||'afternoon';
+  state.settings.sleepHours=t.sleepHours||8;
+  state.settings.priorities=composePriorities(state.settings.tradeoffs);
+  state.settings.onboardingDone=true;
+  if(t.home) rememberHome(t.home);
+  rememberFact('Week tradeoffs: '+state.settings.priorities);
+  var msg='Saved your tradeoffs. I’ll '+({
+    class:'protect classes and deadlines',
+    rest:'protect sleep first',
+    social:'protect social time unless a deadline is close',
+    ask:'ask before dropping anything'
+  }[t.wins]||'follow classes-first')+', put untimed work in the '+t.studyBand+', and '+({
+    place:'place rambles into gaps then ask what’s missing',
+    ask:'ask before placing a ramble'
+  }[t.ramble]||'ask when needed')+'. Dump the week whenever.';
+  if(!state.chatLog.length || (state.chatLog.length===1 && state.chatLog[0].role==='assistant')){
+    state.chatLog=[{role:'assistant', text:msg}];
+  } else {
+    state.chatLog.push({role:'assistant', text:msg});
+  }
+  hideOnboard();
+  saveState();
+  refreshAll();
+}
+
+function maybeOnboard(){
+  if(shouldOnboard()) showOnboard(false);
+  else hideOnboard();
+}
+
 document.getElementById('authBtn').addEventListener('click', startGoogleSignIn);
+document.getElementById('obSkip').addEventListener('click', function(){ finishOnboard(true); });
+document.getElementById('obBack').addEventListener('click', function(){
+  if(onboard.step>0){ onboard.step--; renderOnboard(); }
+});
+document.getElementById('obNext').addEventListener('click', function(){
+  var homeEl=document.getElementById('obHome');
+  if(homeEl) onboard.draft.home=homeEl.value.trim();
+  if(onboard.step<ONBOARD_STEPS.length-1){ onboard.step++; renderOnboard(); }
+  else finishOnboard(false);
+});
+document.getElementById('redoOnboard').addEventListener('click', function(){
+  switchView('schedule');
+  showOnboard(true);
+});
 
 function initAll(){
   var theme=state.settings.theme;
@@ -2753,12 +3257,13 @@ function initAll(){
   buildDayChecks('f_days','fday');
   fillForms();
   if(!state.chatLog.length){
-    state.chatLog.push({role:'assistant', text:'Hi — dump whatever is happening. I’ll make a short title, ask if I need how long or where you’re leaving from, and you can tap any block for the details. Ask “what should I do today?” for wake, sleep, and the run of show.'});
+    state.chatLog.push({role:'assistant', text:'A few tradeoffs first — then dump the week in chat.'});
   }
   var monday=weekMonday(state.selectedDate);
   var hasThisWeek=(state.generated||[]).some(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6); });
   if(!hasThisWeek && (state.fixed.length||state.flexible.length)) generateSchedule(monday);
   refreshAll();
+  maybeOnboard();
   initFirebase();
 }
 initAll();
