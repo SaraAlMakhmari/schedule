@@ -386,11 +386,19 @@
       </div>
       <div class="card">
         <h3>Free AI agent</h3>
-        <p class="sub" style="margin-bottom:10px;">Chat is an agent, not a phrase matcher. It tries, in order: <strong>Ollama on this computer</strong> (fully free, private) → <strong>Gemini free tier</strong> when you sign in → an <strong>on-device model in this browser</strong> (downloads once, then works on GitHub Pages with no server bill). Nothing here is a paid Cursor or ChatGPT subscription.</p>
+        <p class="sub" style="margin-bottom:10px;"><strong>GitHub cannot run Ollama.</strong> GitHub only hosts the website. Ollama stays on your Mac. The live HTTPS site often cannot call <code>http://127.0.0.1</code>, so the app used Gemini. Pick Ollama below and open the planner as a local page on this Mac.</p>
         <div class="grid-form">
+          <div><label>Agent</label>
+            <select id="s_agent">
+              <option value="ollama">Ollama only (this Mac, free)</option>
+              <option value="auto">Auto (Ollama → Gemini → on-device)</option>
+              <option value="gemini">Gemini free tier</option>
+              <option value="webllm">On-device in this tab</option>
+            </select>
+          </div>
           <div><label>Ollama URL (Mac)</label><input type="text" id="s_ollama" placeholder="http://127.0.0.1:11434"></div>
           <div><label>Ollama model</label><input type="text" id="s_ollamaModel" placeholder="llama3.2"></div>
-          <div><label>Optional Gemini key (free AI Studio)</label><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></div>
+          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="AIza…" autocomplete="off"></div>
         </div>
         <p class="sub">Mac: install <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>, run <code>ollama run llama3.2</code>. To let the GitHub site talk to it, quit Ollama and start with <code>OLLAMA_ORIGINS='*' ollama serve</code>.</p>
         <button class="btn secondary" id="saveApiKey" type="button">Save agent settings</button>
@@ -466,7 +474,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaModel:'llama3.2' },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaModel:'llama3.2', agentBackend:'ollama' },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -1811,19 +1819,38 @@ function agentMessages(userText){
   return msgs;
 }
 
+function ollamaBlockedReason(){
+  if(location.protocol==='https:' && /github\.io$/i.test(location.hostname)){
+    return 'This GitHub Pages tab is HTTPS, so the browser blocks Ollama on http://127.0.0.1. GitHub has nothing to turn on for that. On this Mac: open the planner from a local http:// page (not github.io), keep Ollama running, Agent = Ollama only.';
+  }
+  return 'This tab could not reach Ollama at '+ollamaBase()+'. Keep the llama in the menu bar running. If you already saw “address already in use”, that is fine — do not start a second serve.';
+}
+
 function callPlannerLLM(userText){
   var key=(state.settings.apiKey||'').trim();
-  if(key.indexOf('sk-ant')===0) return callClaude(userText);
+  var mode=state.settings.agentBackend||'ollama';
+  if(key.indexOf('sk-ant')===0 && mode!=='ollama') return callClaude(userText);
+  if(mode==='gemini'){
+    setThinking('Agent: Gemini…');
+    return callGemini(userText);
+  }
+  if(mode==='webllm'){
+    setThinking('Agent: on-device model…');
+    return callWebLLM(userText);
+  }
   return probeOllama().then(function(ok){
     if(ok){
-      setThinking('Agent: Ollama on this machine (free)…');
+      setThinking('Agent: Ollama on this Mac…');
       return callOllama(userText);
     }
+    if(mode==='ollama'){
+      return Promise.reject(new Error(ollamaBlockedReason()));
+    }
     if(geminiKey() && (fb.user || key)){
-      setThinking('Agent: Gemini free tier…');
+      setThinking('Ollama not reachable — Gemini free tier…');
       return callGemini(userText);
     }
-    setThinking('Agent: loading on-device model in this tab (free, first time can take a minute)…');
+    setThinking('Ollama not reachable — on-device model…');
     return callWebLLM(userText);
   });
 }
@@ -2542,8 +2569,10 @@ function fillForms(){
   document.getElementById('apiKey').value=state.settings.apiKey||'';
   var ou=document.getElementById('s_ollama');
   var om=document.getElementById('s_ollamaModel');
+  var ag=document.getElementById('s_agent');
   if(ou) ou.value=state.settings.ollamaUrl||'http://127.0.0.1:11434';
   if(om) om.value=state.settings.ollamaModel||'llama3.2';
+  if(ag) ag.value=state.settings.agentBackend||'ollama';
   document.getElementById('e_date').value=todayISO();
 }
 
@@ -2679,6 +2708,8 @@ document.getElementById('saveApiKey').addEventListener('click', function(){
   var om=document.getElementById('s_ollamaModel');
   if(ou) state.settings.ollamaUrl=ou.value.trim()||'http://127.0.0.1:11434';
   if(om) state.settings.ollamaModel=om.value.trim()||'llama3.2';
+  var ag=document.getElementById('s_agent');
+  if(ag) state.settings.agentBackend=ag.value||'ollama';
   saveState();
 });
 document.getElementById('saveFb').addEventListener('click', function(){
