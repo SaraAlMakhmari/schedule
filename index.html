@@ -216,9 +216,16 @@
   .chat-input{display:flex;border-top:1px solid var(--border);flex:none;}
   .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:88px;color:var(--text);}
   .chat-input button#chatMic{
-    font-size:.78rem;padding:0 12px;color:var(--accent-text);font-weight:600;min-width:52px;
+    font-size:.78rem;padding:0 12px;min-width:56px;font-weight:700;
+    background:var(--accent);color:var(--on-accent);border-left:1px solid var(--border);
   }
-  .chat-input button#chatMic.on{color:var(--brick);font-weight:700;}
+  .chat-input button#chatMic.on{background:var(--brick);color:#fff;}
+  :root[data-theme="dark"] .chat-input button#chatMic{
+    background:#C8F542;color:#111113;
+  }
+  :root[data-theme="dark"] .chat-input button#chatMic.on{
+    background:#E85A4A;color:#fff;
+  }
   .chat-close.on{color:var(--accent-text);font-weight:600;}
   .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;flex:none;}
   .chip{font-size:.7rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:4px 9px;color:var(--text-soft);}
@@ -1099,7 +1106,8 @@ function expandTemplates(date){
     }
   });
   var first=out.sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
-  if(first && ready){
+  var keepReady=(state.generated||[]).some(function(e){ return e.date===date && e.type==='buffer' && e.keep && !e.skipped; });
+  if(first && ready && !keepReady){
     var end=toMin(first.start), start=end-ready;
     if(start<5*60) start=5*60;
     if(end>start) out.unshift({id:'virt-ready-'+date, title:'Get ready', type:'buffer', day:day, date:date, start:toHHMM(start), end:toHHMM(end), virtual:true});
@@ -1578,24 +1586,65 @@ function scrubJunkEvents(){
   state.flexible=(state.flexible||[]).filter(function(f){ return !isJunkTitle(f.title); });
 }
 
+function isWipeAllIntent(text){
+  var l=normalizeChat(text).toLowerCase();
+  if(/^(everything|all of it|all of them|all blocks|the lot|wipe it all)$/.test(l)) return true;
+  if(/all weeks|every week that|any weeks? that have/.test(l)) return true;
+  if(/whole schedule|entire schedule|all (my |the )?(schedule|calendar|blocks)/.test(l)) return true;
+  if(/\d+\s*blocks/.test(l) && /clear|schedule|all|whole|wipe/.test(l)) return true;
+  if(/cancel (any |all )?(the )?(recurring|templates|weekly)/.test(l)) return true;
+  if(/clear .{0,40}(everything|all weeks|whole schedule|all blocks)/.test(l)) return true;
+  return false;
+}
+
+function wantsRecurringGone(text){
+  var l=normalizeChat(text).toLowerCase();
+  return /recurring|templates?|all weeks|every week|weekly classes|cancel (any |all )?recurring/.test(l);
+}
+
 function isClearScheduleIntent(text){
-  var l=String(text||'').toLowerCase();
+  var l=normalizeChat(text).toLowerCase();
+  if(isWipeAllIntent(text)) return true;
   if(/not a block|i('m| am) saying clear|meant (to )?clear|i mean clear/.test(l)) return true;
-  if(/\b(clear|wipe|empty|reset|free up)\b/.test(l) && /\b(schedule|calendar|week|day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|everything|plans?)\b/.test(l)) return true;
-  if(/\b(delete|remove|cancel)\b.+\b(everything|all (my )?(plans|events|blocks)|the (week|day))\b/.test(l)) return true;
+  if(/\b(clear|wipe|empty|reset|free up)\b/.test(l) && /\b(schedule|calendar|week|day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|everything|plans?|blocks?)\b/.test(l)) return true;
+  if(/\b(delete|remove)\b.+\b(everything|all (my )?(plans|events|blocks)|the (week|day)|schedule)\b/.test(l)) return true;
+  if(/can you (clear|wipe|empty)|could you (clear|wipe)/.test(l)) return true;
   if(/nothing (on|for) (mon|tue|wed|thu|fri|sat|sun|today|tomorrow|this week)/.test(l)) return true;
   return false;
 }
 
 function daysToClearFromText(text){
-  var l=String(text||'').toLowerCase();
+  var l=normalizeChat(text).toLowerCase();
+  if(/all weeks|every week|whole schedule|entire schedule|everything|all blocks|all of (it|them)/.test(l)) return DAYS.slice();
   var named=parseDayTokens(text);
-  if(named.length) return named;
+  if(named.length && !/all weeks/.test(l)) return named;
   if(/\b(this week|the week|whole week|entire week|all week|my week)\b/.test(l)) return DAYS.slice();
-  if(/\btoday\b/.test(l)) return [dayNameOf(todayISO())];
+  if(/\btoday\b/.test(l) && !/schedule|week/.test(l)) return [dayNameOf(todayISO())];
   if(/\btomorrow\b/.test(l)) return [dayNameOf(addDaysISO(todayISO(),1))];
-  if(/\b(my schedule|the schedule|calendar|everything)\b/.test(l)) return DAYS.slice();
+  if(/\b(my schedule|the schedule|schedule|calendar)\b/.test(l)) return DAYS.slice();
   return [];
+}
+
+function clearEverything(alsoRecurring){
+  pushUndo();
+  var n=(state.generated||[]).length;
+  var f=(state.fixed||[]).length;
+  var x=(state.flexible||[]).length;
+  state.generated=[];
+  state.extraTodos=[];
+  state.todoOrder={};
+  state.todoDone={};
+  state.unscheduled=[];
+  if(alsoRecurring){
+    state.fixed=[];
+    state.flexible=[];
+  }
+  state.pendingAsk=null;
+  saveState();
+  if(alsoRecurring){
+    return 'Wiped everything — '+n+' block'+(n===1?'':'s')+', '+f+' recurring template'+(f===1?'':'s')+', '+x+' flexible task'+(x===1?'':'s')+'. Calendar is empty.';
+  }
+  return 'Cleared all '+n+' stored block'+(n===1?'':'s')+' across every week. Recurring classes still overlay until you say to cancel those too.';
 }
 
 function clearNamedDays(dayNames){
@@ -1625,7 +1674,135 @@ function interpretCommand(text){
 }
 
 function normalizeChat(text){
-  return String(text||'').replace(/^(hi+|hey+|hello+|yo+|hiya+|ok+|okay+|um+|uh+)\s*[,!.:-]+\s+/i,'').replace(/^(hi+|hey+|hello+|yo+)\s+/i,'').trim() || String(text||'').trim();
+  var t=String(text||'');
+  t=t.replace(/\bge+\s*ready\b/ig,'get ready');
+  t=t.replace(/\bgetting ready\b/ig,'get ready');
+  t=t.replace(/\bg ready\b/ig,'get ready');
+  t=t.replace(/^(hi+|hey+|hello+|yo+|hiya+|ok+|okay+|um+|uh+)\s*[,!.:-]+\s+/i,'').replace(/^(hi+|hey+|hello+|yo+)\s+/i,'');
+  return t.trim() || String(text||'').trim();
+}
+
+function looksLikeReorder(text){
+  var l=normalizeChat(text).toLowerCase();
+  if(/get ready/.test(l) && /before|earlier|first|ahead/.test(l)) return true;
+  if(/\b(before|after|earlier than|ahead of)\b/.test(l) && /\b(move|put|go|needs|should|has to|make)\b/.test(l)) return true;
+  if(/\bmove\b.+\b(before|after)\b/.test(l)) return true;
+  if(/\bbefore (the )?(gym|workout|class|any|all|everything|tasks?)\b/.test(l)) return true;
+  return false;
+}
+
+function firstTaskOn(date){
+  return eventsOn(date).filter(function(e){
+    return e && !e.skipped && e.type!=='buffer' && e.start;
+  }).sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0]||null;
+}
+
+function clusterStart(anchor){
+  if(!anchor) return null;
+  var commute=eventsOn(anchor.date).filter(function(e){
+    return e.type==='commute' && !e.skipped && Math.abs(toMin(e.end)-toMin(anchor.start))<=5;
+  }).sort(function(a,b){ return toMin(a.start)-toMin(b.start); })[0];
+  if(commute && toMin(commute.start)<toMin(anchor.start)) return commute;
+  return anchor;
+}
+
+function placeGetReadyBefore(anchor){
+  if(!anchor) return false;
+  var target=clusterStart(anchor);
+  var mins=state.settings.getReadyMins||30;
+  if(mins<10) mins=30;
+  var end=toMin(target.start);
+  var start=end-mins;
+  if(start<5*60) start=5*60;
+  if(end<=start) return false;
+  var existing=(state.generated||[]).filter(function(e){ return e.date===anchor.date && e.type==='buffer' && !e.skipped && !e.virtual; });
+  if(existing.length){
+    var ev=existing[0];
+    ev.start=toHHMM(start);
+    ev.end=toHHMM(end);
+    ev.keep=true;
+    ev.title='Get ready';
+    ev.notes='before '+anchor.title;
+    existing.slice(1).forEach(function(x){ x.skipped=true; x.keep=true; });
+  } else {
+    pushKeepEvent(anchor.date, toHHMM(start), toHHMM(end), 'Get ready', 'buffer', 'before '+anchor.title);
+  }
+  return true;
+}
+
+function applyReorder(text){
+  var raw=normalizeChat(text);
+  var l=raw.toLowerCase();
+  var dates=[];
+  var named=parseDayTokens(raw);
+  if(named.length) named.forEach(function(d){ dates.push(dateForDayName(d, weekMonday(state.selectedDate))); });
+  else if(/any (task|day)|every day|this week|all (tasks|days)|before (the )?tasks/.test(l)){
+    var mon=weekMonday(state.selectedDate);
+    for(var i=0;i<7;i++) dates.push(addDaysISO(mon,i));
+  } else {
+    dates=[todayISO()];
+  }
+
+  var wantReady=/get ready/.test(l) || (/\bready\b/.test(l) && /before/.test(l));
+  var beforeGym=/gym|workout/.test(l);
+  var beforeAny=/any task|all tasks|everything|before (the )?tasks|first/.test(l) && !beforeGym;
+
+  if(wantReady && beforeGym && !named.length){
+    var monG=weekMonday(state.selectedDate);
+    var gymDays=[];
+    for(var gi=0;gi<7;gi++){
+      var gd=addDaysISO(monG,gi);
+      if(eventsOn(gd).some(function(e){ return !e.skipped && (e.type==='workout' || /gym/i.test(e.title||'')); })) gymDays.push(gd);
+    }
+    if(gymDays.length) dates=gymDays;
+  }
+
+  if(wantReady){
+    pushUndo();
+    var n=0;
+    dates.forEach(function(date){
+      var anchor=null;
+      if(beforeGym){
+        anchor=eventsOn(date).filter(function(e){ return !e.skipped && (e.type==='workout' || /gym/i.test(e.title||'')); })[0];
+      }
+      if(!anchor && (beforeAny || !beforeGym)){
+        anchor=firstTaskOn(date);
+      }
+      if(!anchor && beforeGym) return;
+      if(anchor && placeGetReadyBefore(anchor)) n++;
+    });
+    saveState();
+    if(!n) return 'I don’t see a gym/task to put Get ready in front of. Add the activity first, or name the day.';
+    if(beforeGym) return 'Moved Get ready to sit right before gym (and commute, if there is one).';
+    return 'Get ready now sits before the first task'+(dates.length>1?' each of those days.':'.');
+  }
+
+  var parts=l.split(/\s+(?:before|ahead of)\s+/);
+  if(parts.length>=2){
+    var left=parts[0].replace(/^(move|put|make|needs to go|need to go|should (?:go|be|move)|has to go|go)\s+/,'');
+    var right=parts[1];
+    var mover=findEvent(left, dates[0]) || (/ready/.test(left)?null:findEvent(left, state.selectedDate));
+    var anchor=findEvent(right, dates[0]) || findEvent(right, state.selectedDate);
+    if(/ready/.test(left) && anchor){
+      pushUndo();
+      placeGetReadyBefore(anchor);
+      saveState();
+      return 'Get ready is now before "'+anchor.title+'".';
+    }
+    if(mover && anchor && mover.date===anchor.date){
+      pushUndo();
+      var dur=Math.max(15, toMin(mover.end)-toMin(mover.start));
+      var end=toMin(clusterStart(anchor).start);
+      var start=end-dur;
+      if(start<5*60) start=5*60;
+      mover.start=toHHMM(start);
+      mover.end=toHHMM(end);
+      mover.keep=true;
+      saveState();
+      return 'Moved "'+mover.title+'" before "'+anchor.title+'".';
+    }
+  }
+  return 'Tell me what should come first — e.g. get ready before gym, or study before dinner.';
 }
 
 function isHelpIntent(text){
@@ -1639,6 +1816,7 @@ function classifyIntent(text){
   if(!l) return {kind:'empty'};
   if(isSmallTalk(text) || isSmallTalk(raw)) return {kind:'greet'};
   if(isHelpIntent(raw) || isHelpIntent(text)) return {kind:'help'};
+  if(isWipeAllIntent(text) || isWipeAllIntent(raw)) return {kind:'wipe_all'};
   if(isClearScheduleIntent(text) || isClearScheduleIntent(raw) || (looksLikeIntentCorrection(raw) && /\bclear\b/.test(l))){
     return {kind:'clear', days:daysToClearFromText(text)};
   }
@@ -1650,7 +1828,10 @@ function classifyIntent(text){
   if(/regenerate|rebuild week|redo week/.test(l) && raw.length<50) return {kind:'rebuild'};
   if(/(add expense|spent|log)\s*\$?\d/.test(l) || /income|allowance/.test(l)) return {kind:'expense'};
   if(/i live|home is|my home is|my station is/.test(l)) return {kind:'home'};
-  if(/\b(skip|cancel)\b/.test(l) || /too tired|i'?m tired|im tired/.test(l)) return {kind:'skip'};
+  if(looksLikeReorder(raw) || looksLikeReorder(text)) return {kind:'order'};
+  if(/\bskip\b/.test(l) && !/skip that I mean/.test(l)) return {kind:'skip'};
+  if(/too tired|i'?m tired|im tired/.test(l)) return {kind:'skip'};
+  if(/^cancel (the |my )?(workout|gym|class|meeting|study|event)\b/.test(l)) return {kind:'skip'};
   if(/^move /.test(l) || /move .+ to \d/.test(l)) return {kind:'move'};
   if(looksLikeEdit(l)) return {kind:'edit'};
   if(looksLikePromoteRecurring(raw)) return {kind:'promote'};
@@ -1668,7 +1849,7 @@ function handleIntent(text){
   var intent=classifyIntent(text);
   if(intent.kind==='greet') return smallTalkReply(String(text||'').toLowerCase());
   if(intent.kind==='help'){
-    return 'Yeah. Say it like a text — “clear Mon–Wed”, “class Thursday 10 to 11”, “quiz 3 due Friday, 3 hours of study”, “gym Tuesday 5–7”. I figure out if that’s a greeting, a question, or something for the calendar. You don’t need a special phrase.';
+    return 'Yeah. Say it like a text — “get ready before gym”, “clear Mon–Wed”, “class Thursday 10 to 11”. Before/after is enough; you don’t need a magic phrase.';
   }
   if(intent.kind==='class_when'){
     var days=parseDayTokens(text);
@@ -1678,11 +1859,19 @@ function handleIntent(text){
     saveState();
     return 'What time is '+title+(days.length?' on '+days.join('/'):'')+'? Like 10 to 11:30 — I need a clock time for a class, not a random gap.';
   }
+  if(intent.kind==='wipe_all') return clearEverything(wantsRecurringGone(text));
   if(intent.kind==='clear'){
+    if(isWipeAllIntent(text) || /all weeks|all blocks|whole schedule/.test(normalizeChat(text).toLowerCase())){
+      return clearEverything(wantsRecurringGone(text));
+    }
     var days=intent.days && intent.days.length ? intent.days : daysToClearFromText(text);
     if(!days.length){
-      state.pendingAsk=null;
-      return 'Which days should I clear — today, Mon–Wed, or the whole week?';
+      state.pendingAsk={kind:'clearWhat'};
+      saveState();
+      return 'This week, certain days (Mon–Wed), or everything — all weeks, including recurring?';
+    }
+    if(/\bschedule\b/.test(normalizeChat(text).toLowerCase()) && !parseDayTokens(text).length){
+      return clearEverything(false);
     }
     return clearNamedDays(days);
   }
@@ -1698,6 +1887,7 @@ function handleIntent(text){
     return 'Got it — I won’t add that as a block. Tell me the actual ask: clear days, skip something, or put a real event on.';
   }
   if(intent.kind==='promote') return makeExistingRecurring(text);
+  if(intent.kind==='order') return applyReorder(text);
   return null;
 }
 
@@ -1713,7 +1903,7 @@ function titleLooksLikeUtterance(title, userText){
 
 function gateActions(actions, userText){
   var intent=classifyIntent(userText);
-  var noAdd={greet:1, help:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1, promote:1, class_when:1};
+  var noAdd={greet:1, help:1, question:1, correct:1, clear:1, wipe_all:1, skip:1, shift:1, rebuild:1, promote:1, class_when:1, order:1};
   return (actions||[]).filter(function(a){
     if(!a || !a.op) return false;
     if(a.op==='add'){
@@ -1791,7 +1981,15 @@ function handlePending(text){
     saveState();
     return applyCorrection(text);
   }
-  if(/never mind|nevermind|cancel|forget (it|that)/.test(lower)){
+  if(p.kind==='clearWhat'){
+    if(/everything|all of it|all weeks|whole week|entire|all blocks|recurring/.test(lower)){
+      return clearEverything(wantsRecurringGone(text) || /all weeks|recurring/.test(lower));
+    }
+    var daysP=daysToClearFromText(text);
+    if(daysP.length) return clearNamedDays(daysP);
+    return 'Say this week, Mon–Wed, everything, or all weeks including recurring.';
+  }
+  if(/never mind|nevermind|forget (it|that)/.test(lower) || (/^cancel$/.test(lower))){
     state.pendingAsk=null;
     saveState();
     return 'Ok, dropped that. Say it again when you want.';
@@ -2189,7 +2387,7 @@ function localParse(text, allowSchedule){
     return 'Pushed '+shifted+' flexible block(s) today by '+mins+' minutes. Classes/work stayed put.';
   }
 
-  if(/skip|cancel|too tired|i'm tired|im tired/.test(lower)){
+  if((/\bskip\b/.test(lower) || /too tired|i'm tired|im tired/.test(lower) || /^cancel (the |my )?(workout|gym|class|meeting)/.test(lower)) && !/recurring|all weeks|schedule|everything|blocks/.test(lower)){
     var ev=findEvent(text, todayISO());
     if(ev){ ev.skipped=true; ev.keep=true; saveState(); return 'Skipped "'+ev.title+'" on '+prettyDate(ev.date)+'.'; }
     return 'Name the event to skip, e.g. "skip workout today".';
@@ -2530,6 +2728,7 @@ function looksLikeDirectScheduleTalk(text){
   if(looksLikePromoteRecurring(text) || looksLikeRecurring(text)) return true;
   if(/\b(class|lecture|lab)\b/.test(l) && (parseDayTokens(text).length || parseRange(text) || parseAtTime(text))) return true;
   if(/meeting/.test(l) && (parseAtTime(text) || /\btomorrow\b|\btoday\b/.test(l))) return true;
+  if(looksLikeReorder(text)) return true;
   if(/quiz|exam|midterm/.test(l) && /study|need|prep|review|due/.test(l)) return true;
   if(/\b(gym|laundry|workout)\b/.test(l) && (parseAtTime(text) || parseRange(text) || parseDayTokens(text).length)) return true;
   return false;
