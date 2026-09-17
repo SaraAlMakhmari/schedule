@@ -162,6 +162,17 @@
   .day-item .ttl{font-weight:600;}
   .day-item .meta{font-size:.78rem;color:var(--text-soft);}
   .empty{padding:28px;border:1px dashed var(--border);border-radius:var(--radius);color:var(--text-soft);line-height:1.5;max-width:640px;}
+  .todo-list{display:flex;flex-direction:column;gap:8px;max-width:640px;}
+  .todo-row{
+    display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:start;
+    padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  }
+  .todo-row.done{opacity:.5;}
+  .todo-row.done .ttl{text-decoration:line-through;}
+  .todo-row input[type=checkbox]{width:18px;height:18px;margin-top:3px;accent-color:var(--accent-text);}
+  .todo-prog{font-size:.86rem;color:var(--text-soft);margin-bottom:12px;}
+  .todo-add{display:flex;gap:8px;max-width:640px;margin-top:14px;}
+  .todo-add input{flex:1;}
 
   .month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
   .month-dow{text-align:center;font-size:.72rem;color:var(--text-soft);padding:4px;}
@@ -258,21 +269,19 @@
   <nav class="rail">
     <div class="brand"><span class="dot"></span><span>Weekplan</span></div>
     <button class="nav-item active" data-view="schedule"><span class="label">Schedule</span></button>
+    <button class="nav-item" data-view="todo"><span class="label">To-do</span></button>
     <button class="nav-item" data-view="budget"><span class="label">Budget</span></button>
     <button class="nav-item" data-view="settings"><span class="label">Settings</span></button>
     <div class="spacer"></div>
     <div class="sync-chip" id="syncChip">On this device only</div>
     <button class="btn secondary" id="authBtn" style="margin:0 2px 10px;width:calc(100% - 4px);font-size:.78rem;">Sign in</button>
     <div class="theme-toggle"><span>Dark</span><button id="themeToggle" type="button">☀</button></div>
-    <div class="hint">The Mac hosts the app. Sign in to sync. GitHub is not the agent.</div>
+    <div class="hint">Sign in so Mac and phone share the same week.</div>
   </nav>
 
   <div class="workspace">
   <main>
     <section class="view active" id="view-schedule">
-      <div class="banner warn" id="hostBanner" hidden>
-        <span id="hostBannerText">This HTTPS site cannot use Ollama on your Mac. Open Weekplan from this laptop instead (double-click Weekplan.command).</span>
-      </div>
       <div class="banner warn" id="syncBanner" hidden>
         <span id="syncBannerText">Sign in with Google on this device so Mac and phone share the same week.</span>
         <button class="btn" type="button" id="gotoFirebase">Sign in</button>
@@ -301,8 +310,56 @@
       <div id="unschedBox"></div>
     </section>
 
-    <section class="view" id="view-setup">
-      <div class="topbar"><h1>Setup</h1></div>
+    <section class="view" id="view-todo">
+      <div class="topbar">
+        <div>
+          <h1>To-do</h1>
+          <div class="sub" id="todoSub">Today’s scheduled blocks, as a checklist.</div>
+        </div>
+      </div>
+      <p class="todo-prog" id="todoProg"></p>
+      <div id="todoMount"></div>
+      <div class="todo-add">
+        <input type="text" id="todoExtra" placeholder="Add something else for today">
+        <button class="btn secondary" id="addTodoExtra" type="button">Add</button>
+      </div>
+    </section>
+
+    <section class="view" id="view-budget">
+      <div class="topbar"><h1>Budget</h1></div>
+      <div class="card">
+        <h3>Income & savings</h3>
+        <div class="grid-form">
+          <div><label>Weekly income / allowance ($)</label><input type="number" id="b_income" min="0" step="1"></div>
+          <div><label>Savings goal (% of income)</label><input type="number" id="b_savings" min="0" max="100" step="1"></div>
+        </div>
+        <button class="btn secondary" id="saveBudget" type="button">Save</button>
+      </div>
+      <div class="stat-row" id="budgetStats"></div>
+      <div class="card"><h3>Recommended split</h3><div id="recommendBox"></div></div>
+      <div class="two-col">
+        <div class="card">
+          <h3>Log an expense</h3>
+          <div class="grid-form">
+            <div><label>Date</label><input type="date" id="e_date"></div>
+            <div><label>Category</label>
+              <select id="e_cat">
+                <option>Food/Groceries</option><option>Dining out</option><option>Transport</option>
+                <option>Outings/Entertainment</option><option>Subscriptions</option><option>Shopping</option><option>Other</option>
+              </select>
+            </div>
+            <div><label>Amount ($)</label><input type="number" id="e_amount" min="0" step="0.01"></div>
+            <div><label>Note</label><input type="text" id="e_note" placeholder="optional"></div>
+          </div>
+          <button class="btn secondary" id="addExpense" type="button">Log expense</button>
+        </div>
+        <div class="card"><h3>This week by category</h3><div id="catBars"></div></div>
+      </div>
+      <div class="card"><h3>Recent expenses <span class="count" id="expCount"></span></h3><div id="expList"></div></div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <div class="topbar"><h1>Settings</h1></div>
       <div class="card">
         <h3>Daily rhythm</h3>
         <div class="grid-form">
@@ -351,52 +408,14 @@
           <div id="flexList" style="margin-top:10px;"></div>
         </div>
       </div>
-      <p class="foot-note">Chat can add all of this too. Rebuild week places templates onto the week you are viewing. Chat edits keep their dates unless you rebuild.</p>
-    </section>
-
-    <section class="view" id="view-budget">
-      <div class="topbar"><h1>Budget</h1></div>
-      <div class="card">
-        <h3>Income & savings</h3>
-        <div class="grid-form">
-          <div><label>Weekly income / allowance ($)</label><input type="number" id="b_income" min="0" step="1"></div>
-          <div><label>Savings goal (% of income)</label><input type="number" id="b_savings" min="0" max="100" step="1"></div>
-        </div>
-        <button class="btn secondary" id="saveBudget" type="button">Save</button>
-      </div>
-      <div class="stat-row" id="budgetStats"></div>
-      <div class="card"><h3>Recommended split</h3><div id="recommendBox"></div></div>
-      <div class="two-col">
-        <div class="card">
-          <h3>Log an expense</h3>
-          <div class="grid-form">
-            <div><label>Date</label><input type="date" id="e_date"></div>
-            <div><label>Category</label>
-              <select id="e_cat">
-                <option>Food/Groceries</option><option>Dining out</option><option>Transport</option>
-                <option>Outings/Entertainment</option><option>Subscriptions</option><option>Shopping</option><option>Other</option>
-              </select>
-            </div>
-            <div><label>Amount ($)</label><input type="number" id="e_amount" min="0" step="0.01"></div>
-            <div><label>Note</label><input type="text" id="e_note" placeholder="optional"></div>
-          </div>
-          <button class="btn secondary" id="addExpense" type="button">Log expense</button>
-        </div>
-        <div class="card"><h3>This week by category</h3><div id="catBars"></div></div>
-      </div>
-      <div class="card"><h3>Recent expenses <span class="count" id="expCount"></span></h3><div id="expList"></div></div>
-    </section>
-
-    <section class="view" id="view-settings">
-      <div class="topbar"><h1>Settings</h1></div>
+      <p class="foot-note">Chat can add all of this too. Rebuild week places templates onto the week you are viewing.</p>
       <div class="card">
         <h3>Firebase sync (free Spark plan)</h3>
         <ol class="steps">
           <li>Firebase console → Project settings → Your apps → Web app → copy the config object.</li>
-          <li>Authentication → Google → Enable. Authorized domains: <code>localhost</code>, and your Mac’s Wi‑Fi IP (or Tailscale name) if the phone opens Weekplan there.</li>
+          <li>Authentication → Google → Enable. Authorized domains: <code>localhost</code>, github.io, and your hosting domain.</li>
           <li>Firestore → Create database → paste rules from <code>firestore.rules</code>.</li>
-          <li>Paste the config below if needed. Chat with Ollama from the Mac-hosted page, not github.io.</li>
-          <li>Sign in on that local page so Mac and phone share the week.</li>
+          <li>Sign in on Mac and phone with the same Google account so they share the week.</li>
         </ol>
         <label>Firebase config JSON</label>
         <textarea id="fbConfig" rows="7" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'></textarea>
@@ -417,27 +436,13 @@
       </div>
       <div class="card">
         <h3>Your agent</h3>
-        <p class="sub" style="margin-bottom:10px;">Cross-device brain: Gemini Flash behind a Cloudflare Worker (free, key not in the page). Edit <code>agent/brain.js</code>, redeploy the worker. Firestore still syncs laptop and iPhone. Ollama is optional and Mac-only.</p>
+        <p class="sub" style="margin-bottom:10px;">Chat uses Gemini Flash on Cloudflare. The key stays on the Worker. Same agent on Mac and phone after you sign in.</p>
         <div class="grid-form">
-          <div><label>Brain</label>
-            <select id="s_agent">
-              <option value="cloud">Cloud agent (Gemini Worker — phone + laptop)</option>
-              <option value="ollama">Ollama on this Mac only</option>
-              <option value="gemini">Gemini from the browser (key in page — avoid)</option>
-              <option value="auto">Cloud worker, else Ollama, else Gemini</option>
-              <option value="webllm">In this tab only</option>
-            </select>
-          </div>
           <div><label>Agent worker URL</label><input type="text" id="s_worker" placeholder="https://weekplan-agent.…workers.dev"></div>
-          <div><label>Ollama on this Mac</label><input type="text" id="s_ollama" placeholder="http://127.0.0.1:11434"></div>
-          <div><label>Ollama from the phone / HTTPS</label><input type="text" id="s_ollama_remote" placeholder="optional Tailscale https://"></div>
-          <div><label>Ollama model</label><input type="text" id="s_ollamaModel" placeholder="llama3.1:8b"></div>
-          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="Only if you skip the Worker" autocomplete="off"></div>
         </div>
         <label style="margin-top:8px;">How I want the week decided</label>
         <textarea id="s_priorities" rows="4" placeholder="Classes first, then dues, then rest…"></textarea>
-        <p class="sub" style="margin-top:8px;" id="ollamaHint"></p>
-        <p class="sub">On the Mac run <code>ollama pull llama3.1:8b</code> (or <code>qwen2.5:7b</code>) then put that name in the model field. llama3.2 is too small to plan a week. Away from home Wi‑Fi: Tailscale on Mac and iPhone, <code>tailscale serve --bg 11434</code>, paste the <code>https://</code> URL above.</p>
+        <p class="sub" style="margin-top:8px;" id="agentHint"></p>
         <button class="btn secondary" id="saveApiKey" type="button">Save agent settings</button>
       </div>
       <div class="card">
@@ -537,7 +542,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaRemoteUrl:'', ollamaModel:'llama3.1:8b', agentBackend:'cloud', agentWorkerUrl:'', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon', speakReplies:true },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, agentWorkerUrl:'', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon', speakReplies:true },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -549,6 +554,8 @@ function defaultState(){
     assignments:[],
     pendingAsk:null,
     lastEventId:null,
+    todoDone:{},
+    extraTodos:[],
     agentMemory:{ facts:[], people:{} },
     budget:{ income:0, savingsPct:20 }
   };
@@ -566,10 +573,11 @@ function loadState(){
       settings: Object.assign(d.settings, parsed.settings||{}),
       budget: Object.assign(d.budget, parsed.budget||{}),
       assignments: parsed.assignments||[],
-      agentMemory: Object.assign({facts:[], people:{}}, parsed.agentMemory||{})
+      agentMemory: Object.assign({facts:[], people:{}}, parsed.agentMemory||{}),
+      todoDone: parsed.todoDone||{},
+      extraTodos: parsed.extraTodos||[]
     });
-    if(!merged.settings.ollamaRemoteUrl) merged.settings.ollamaRemoteUrl='';
-    if(merged.settings.ollamaModel==='llama3.2') merged.settings.ollamaModel='llama3.1:8b';
+    merged.settings.agentBackend='cloud';
     (merged.generated||[]).forEach(function(e){
       if(!e.date && e.day) e.date = dateForDayName(e.day, weekMonday(merged.selectedDate||todayISO()));
     });
@@ -1976,24 +1984,6 @@ function personableFallback(userText, err){
   return 'I didn’t fully catch that. Want that as a meeting, study time, or something else — and when?';
 }
 
-function geminiKey(){
-  var k=(state.settings.apiKey||'').trim();
-  if(k && k.indexOf('sk-ant')!==0) return k;
-  var cfg=getFbConfig();
-  return (cfg && cfg.apiKey) || '';
-}
-
-function canUseAgent(){
-  if((state.settings.apiKey||'').trim()) return true;
-  return !!(fb.user && geminiKey());
-}
-
-function recentChatBlob(){
-  return (state.chatLog||[]).slice(-12).filter(function(m){ return !isThinkMsg(m) && m.text; }).map(function(m){
-    return (m.role==='user'?'Sara':'Agent')+': '+m.text;
-  }).join('\n');
-}
-
 function plannerContext(){
   var monday=weekMonday(state.selectedDate);
   var dayStart=toMin(state.settings.wake)||6*60;
@@ -2023,63 +2013,6 @@ function plannerSchema(){
   return 'Return ONLY minified JSON: {"think":string,"reply":string,"ask":null|{"kind":"duration"|"when"|"who"|"where"|"leaveFrom"|"home"|"aboutWhat","topic":string},"actions":[...same ops as before...]} '.replace('[...same ops as before...]','[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home"|"remember"|"forget","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]')+'You are a personable scheduling friend for Sara (Science Tokyo), not a form. reply must sound like a text: contractions, one clear question if anything is missing. NEVER say “What’s going on the week? Say it however you want.” Hi/hello → greet, mention today if there are events, ask what’s up. Meeting + time, unknown purpose → still remember the time, ask what it’s for, title like Meeting: Yap or Study for quiz. Quiz/exam rambles → study blocks + due, NEVER a title like “Quiz Is Needed About Work”. '+plannerContext()+'\nRULES: (1) think first. (2) Corrections update. (3) Ask, don’t invent times. (4) Place in listed gaps. (5) Online: meeting, no commute.';
 }
 
-function weekDigest(){
-  return (state.generated||[]).map(function(e){ return (e.date||e.day)+' '+e.start+'-'+e.end+' '+e.title+(e.skipped?' skipped':''); }).join('; ');
-}
-
-function geminiModelList(){
-  var prefer=(state.settings.geminiModel||'').trim();
-  var list=['gemini-2.5-flash','gemini-2.0-flash','gemini-flash-latest'];
-  if(prefer) list=[prefer].concat(list.filter(function(m){ return m!==prefer; }));
-  return list;
-}
-
-function geminiContentsFromLog(){
-  var raw=[];
-  (state.chatLog||[]).slice(-16).forEach(function(m){
-    if(isThinkMsg(m) || !m.text) return;
-    raw.push({role:m.role==='user'?'user':'model', parts:[{text:m.text}]});
-  });
-  var out=[];
-  raw.forEach(function(c){
-    if(out.length && out[out.length-1].role===c.role){
-      out[out.length-1].parts[0].text+='\n'+c.parts[0].text;
-    } else out.push(c);
-  });
-  if(out.length && out[0].role==='model'){
-    out.unshift({role:'user', parts:[{text:'Hi.'}]});
-  }
-  if(!out.length) out.push({role:'user', parts:[{text:'Hi.'}]});
-  return out;
-}
-
-function geminiGenerate(body, models){
-  var key=geminiKey();
-  models=models||geminiModelList();
-  var attempt=function(i){
-    if(i>=models.length) return Promise.reject(new Error('Gemini models failed. Settings → paste a free AI Studio key (AIza…).'));
-    return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[i])+':generateContent?key='+encodeURIComponent(key), {
-      method:'POST',
-      headers:{'content-type':'application/json'},
-      body: JSON.stringify(body)
-    }).then(function(r){
-      if(r.status===404 || r.status===429) return attempt(i+1);
-      if(!r.ok) return r.text().then(function(t){
-        if(r.status===403 || r.status===400){
-          if(/not found|NOT_FOUND|model/i.test(t) && i+1<models.length) return attempt(i+1);
-          throw new Error('Gemini refused the key. Settings → aistudio.google.com/apikey and paste AIza…');
-        }
-        throw new Error('Gemini HTTP '+r.status+' '+t.slice(0,140));
-      });
-      return r.json();
-    });
-  };
-  return attempt(0).then(function(data){
-    var parts=((((data.candidates||[])[0]||{}).content||{}).parts)||[];
-    return parts.map(function(p){ return p.text||''; }).join('').trim();
-  });
-}
-
 function applyPlannerJSON(textOut, spokenReply){
   var parsed;
   if(textOut && typeof textOut==='object') parsed=textOut;
@@ -2101,36 +2034,6 @@ function applyPlannerJSON(textOut, spokenReply){
   var reply=String(spokenReply||parsed.reply||'').trim();
   reply=maybeAskAfterAdd(reply, actions, ask);
   return reply||'Done.';
-}
-
-function callGemini(userText){
-  var talkSys=[
-    'You are Weekplan, chatting with Sara like the Gemini app: warm, specific, curious, short paragraphs.',
-    'You know her week and tradeoffs below. Ask follow-ups (what’s the meeting for, how long to study for a quiz).',
-    'Do not dump JSON. Do not say “What’s going on the week? Say it however you want.”',
-    'If she says hi, greet her like a person. If she rambles, reflect what you heard, then one question or a clear plan.',
-    'Never invent a clock time she did not give. Quiz/exam prep is study time, not a block titled “quiz needed work”.',
-    '',
-    plannerContext()
-  ].join('\n');
-  setThinking('Gemini talking');
-  return geminiGenerate({
-    systemInstruction:{parts:[{text:talkSys}]},
-    contents:geminiContentsFromLog(),
-    generationConfig:{temperature:0.8, maxOutputTokens:700, topP:0.95}
-  }).then(function(spoken){
-    if(!spoken) spoken='Hey — tell me a bit more so I can put it on the week.';
-    setThinking('Updating the week');
-    return geminiGenerate({
-      systemInstruction:{parts:[{text:'Extract calendar mutations only. The human already got this reply:\n'+spoken+'\n'+plannerSchema()}]},
-      contents:[{role:'user', parts:[{text:'Sara just said:\n'+userText+'\n\nYour spoken reply was:\n'+spoken+'\n\nJSON only.'}]}],
-      generationConfig:{responseMimeType:'application/json', temperature:0.1, maxOutputTokens:1200}
-    }).then(function(jsonText){
-      return applyPlannerJSON(jsonText, spoken);
-    }).catch(function(){
-      return spoken;
-    });
-  });
 }
 
 function followUpPrompt(ask){
@@ -2186,7 +2089,7 @@ function isThinkMsg(m){
   if(!m) return false;
   if(m.thinking) return true;
   var t=m.text||'';
-  return t==='Thinking…' || /^Agent:/.test(t) || /^Ollama/.test(t) || /^On-device/.test(t) || /^Loading /.test(t);
+  return t==='Thinking…' || /^Agent:/.test(t);
 }
 
 function thinkMarkup(label){
@@ -2223,79 +2126,24 @@ function startThinkAnim(){
 function setThinking(msg){
   var last=state.chatLog[state.chatLog.length-1];
   if(last && last.role==='assistant' && last.thinking){
-    if(msg && !/^Agent:/.test(msg) && !/^Ollama/.test(msg)) last.thinkLabel=msg;
+    if(msg && !/^Agent:/.test(msg)) last.thinkLabel=msg;
     renderChat();
     return;
   }
   startThinkAnim();
 }
 
-function isLoopbackUrl(u){
-  return /^(https?:\/\/)?(127\.0\.0\.1|localhost)(:|\/|$)/i.test(String(u||'').trim());
-}
-
-function ollamaBase(){
-  var remote=(state.settings.ollamaRemoteUrl||'').trim().replace(/\/$/,'');
-  var local=(state.settings.ollamaUrl||'http://127.0.0.1:11434').replace(/\/$/,'');
-  var host=location.hostname;
-  var pageHttp=location.protocol==='http:';
-  var lanHost=host && host!=='localhost' && host!=='127.0.0.1' && !/\.github\.io$/i.test(host);
-  if(location.protocol==='https:'){
-    if(remote && /^https:/i.test(remote)) return remote;
-    return remote || local;
-  }
-  if(pageHttp && lanHost){
-    if(remote && !isLoopbackUrl(remote)) return remote;
-    return 'http://'+host+':11434';
-  }
-  if(remote && !isLoopbackUrl(remote) && (host==='localhost' || host==='127.0.0.1')) return local;
-  return local;
-}
-
-function updateOllamaHint(){
-  var el=document.getElementById('ollamaHint');
-  if(!el) return;
-  var target=ollamaBase();
-  var bits=[];
-  if(agentWorkerUrl()) bits.push('Cloud agent: '+agentWorkerUrl());
-  bits.push('Ollama target: '+target+'.');
-  if(location.protocol==='https:' && !/^https:/i.test(target)){
-    bits.push('GitHub Pages is HTTPS, so the phone browser will block this http URL. Open the Mac’s http:// page on the phone instead, or paste a Tailscale https:// URL.');
-  } else if(location.protocol==='http:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
-    bits.push('You are on the Mac-hosted page — this is the setup the phone should use.');
-  }
-  el.textContent=bits.join(' ');
-}
-
-function probeOllama(){
-  return fetch(ollamaBase()+'/api/tags', {method:'GET'}).then(function(r){ return r.ok; }).catch(function(){ return false; });
-}
-
-function agentMessages(userText){
-  var sys=plannerSchema();
-  var msgs=[{role:'system', content:sys}];
-  (state.chatLog||[]).slice(-12).forEach(function(m){
-    if(isThinkMsg(m) || !m.text) return;
-    msgs.push({role:m.role==='user'?'user':'assistant', content:m.text});
-  });
-  if(!msgs.length || msgs[msgs.length-1].content!==userText){
-    msgs.push({role:'user', content:userText});
-  }
-  return msgs;
-}
-
-function ollamaBlockedReason(){
-  var target=ollamaBase();
-  if(location.protocol==='https:' && !/^https:/i.test(target)){
-    return 'This HTTPS tab cannot talk to Ollama at '+target+'. On the phone open the http:// address from ./mac-ollama.sh (same Wi‑Fi), not github.io. For campus/cellular, Tailscale + an https:// Ollama URL in Settings.';
-  }
-  return 'Could not reach Ollama at '+target+'. On the Mac: quit the menu-bar llama, then run ./mac-ollama.sh so it listens on the Wi‑Fi, not only 127.0.0.1. Keep the Mac awake.';
-}
-
 function agentWorkerUrl(){
   var fromPage=(window.WEEKPLAN_AGENT_URL||'').trim();
   var fromSettings=(state.settings.agentWorkerUrl||'').trim();
   return (fromSettings||fromPage).replace(/\/$/,'');
+}
+
+function updateAgentHint(){
+  var el=document.getElementById('agentHint');
+  if(!el) return;
+  var url=agentWorkerUrl();
+  el.textContent=url ? ('Using '+url) : 'No worker URL yet. Paste the workers.dev address from wrangler deploy.';
 }
 
 function callAgentWorker(userText){
@@ -2323,133 +2171,11 @@ function callAgentWorker(userText){
 }
 
 function callPlannerLLM(userText){
-  var key=(state.settings.apiKey||'').trim();
-  var mode=state.settings.agentBackend||'cloud';
   startThinkAnim();
-  if(key.indexOf('sk-ant')===0 && mode!=='ollama' && mode!=='cloud') return callClaude(userText);
-  if(mode==='webllm') return callWebLLM(userText);
-  if((mode==='cloud' || mode==='auto') && agentWorkerUrl()){
-    return callAgentWorker(userText).catch(function(err){
-      if(mode==='cloud') return Promise.reject(err);
-      if(mode==='auto'){
-        if(geminiKey()) return callGemini(userText);
-      }
-      throw err;
-    });
+  if(!agentWorkerUrl()){
+    return Promise.reject(new Error('No agent worker URL. Settings → paste the workers.dev address, then Save.'));
   }
-  if(mode==='gemini'){
-    if(geminiKey()) return callGemini(userText);
-    return Promise.reject(new Error('No Gemini key. Set the Worker URL, or paste an AI Studio key.'));
-  }
-  var tryOllama=function(){
-    return probeOllama().then(function(ok){
-      if(ok) return callOllama(userText);
-      if(mode==='ollama') return Promise.reject(new Error(ollamaBlockedReason()));
-      if(agentWorkerUrl()) return callAgentWorker(userText);
-      if(geminiKey()) return callGemini(userText);
-      return callWebLLM(userText);
-    });
-  };
-  return tryOllama();
-}
-
-function ollamaChat(messages, opts){
-  opts=opts||{};
-  var model=state.settings.ollamaModel||'llama3.1:8b';
-  var body={
-    model:model,
-    stream:false,
-    messages:messages,
-    options:{ temperature: opts.temperature!=null?opts.temperature:0.2, num_predict: opts.num_predict||900 }
-  };
-  if(opts.json) body.format='json';
-  return fetch(ollamaBase()+'/api/chat', {
-    method:'POST',
-    headers:{'content-type':'application/json'},
-    body: JSON.stringify(body)
-  }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){ throw new Error('Ollama '+r.status+' '+t.slice(0,160)); });
-    return r.json();
-  }).then(function(data){
-    return (data.message&&data.message.content)||'';
-  });
-}
-
-function callOllama(userText){
-  var history=[];
-  (state.chatLog||[]).slice(-10).forEach(function(m){
-    if(isThinkMsg(m) || !m.text) return;
-    history.push({role:m.role==='user'?'user':'assistant', content:m.text});
-  });
-  if(!history.length || history[history.length-1].content!==userText){
-    history.push({role:'user', content:userText});
-  }
-  var reasonMsgs=[{role:'system', content:'You are Sara’s week planner. Write like a helpful friend (short, specific). Do not output JSON yet. Notes: what she meant; whether this is a meeting vs study vs outing; what to ask (purpose of a meeting, hours to study for a quiz); which gap. Never invent titles like “needed about work”.\n\n'+plannerContext()}].concat(history);
-  setThinking('Looking at the week');
-  return ollamaChat(reasonMsgs, {json:false, temperature:0.35, num_predict:450}).then(function(think){
-    setThinking('Turning that into the calendar');
-    var jsonMsgs=[
-      {role:'system', content:plannerSchema()+'\nYour notes (obey these, do not ignore gaps):\n'+(think||'').slice(0,2500)},
-      {role:'user', content:'User: '+userText+'\nJSON only.'}
-    ];
-    return ollamaChat(jsonMsgs, {json:true, temperature:0.1, num_predict:1200});
-  }).then(function(textOut){
-    return applyPlannerJSON(textOut);
-  });
-}
-
-var webllmEngine=null;
-var webllmLoading=null;
-function callWebLLM(userText){
-  var start=function(engine){
-    return engine.chat.completions.create({
-      messages:agentMessages(userText),
-      response_format:{type:'json_object'},
-      max_tokens:900,
-      temperature:0.2
-    }).then(function(out){
-      var textOut=((((out.choices||[])[0]||{}).message)||{}).content||'';
-      return applyPlannerJSON(textOut);
-    });
-  };
-  if(webllmEngine) return start(webllmEngine);
-  if(!webllmLoading){
-    webllmLoading=import('https://esm.sh/@mlc-ai/web-llm@0.2.79').then(function(mlc){
-      return mlc.CreateMLCEngine('Llama-3.2-1B-Instruct-q4f16_1-MLC', {
-        initProgressCallback:function(info){
-          if(info && info.text) setThinking('On-device: '+info.text);
-        }
-      });
-    }).then(function(engine){
-      webllmEngine=engine;
-      return engine;
-    });
-  }
-  return webllmLoading.then(start);
-}
-
-function callClaude(userText){
-  return fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{
-      'content-type':'application/json',
-      'x-api-key': state.settings.apiKey,
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access':'true'
-    },
-    body: JSON.stringify({
-      model: state.settings.apiModel || 'claude-haiku-4-5-20251001',
-      max_tokens: 900,
-      system: 'You are Sara’s weekly planning agent. Put anything she says onto the week. Home: '+(state.settings.homePlace||'unknown')+'. Campus: '+(state.settings.campusPlace||'Ookayama')+'. Current events: '+weekDigest()+'. Omit start to auto-place. '+plannerSchema(),
-      messages:[{role:'user', content:userText}]
-    })
-  }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){ throw new Error('HTTP '+r.status+' '+t.slice(0,120)); });
-    return r.json();
-  }).then(function(data){
-    var textOut=(data.content||[]).map(function(c){return c.text||'';}).join('');
-    return applyPlannerJSON(textOut);
-  });
+  return callAgentWorker(userText);
 }
 
 function applyActions(actions){
@@ -2546,6 +2272,88 @@ function switchView(name){
     b.classList.toggle('active', b.getAttribute('data-view')===name);
   });
   if(name==='budget') renderBudget();
+  if(name==='todo') renderTodos();
+}
+
+function todoKey(e){
+  return 'ev:'+(e.id || ((e.date||'')+'|'+(e.start||'')+'|'+(e.title||'')));
+}
+
+function todaysTodoItems(){
+  if(!state.todoDone) state.todoDone={};
+  if(!state.extraTodos) state.extraTodos=[];
+  var date=todayISO();
+  var items=eventsOn(date).filter(function(e){ return !e.skipped; }).map(function(e){
+    var meta=[];
+    if(TYPE_LABEL[e.type]) meta.push(TYPE_LABEL[e.type]);
+    if(e.who) meta.push(e.who);
+    if(e.place) meta.push(e.place);
+    if(e.online) meta.push('online');
+    return {
+      key: todoKey(e),
+      title: e.title,
+      when: (e.start && e.end) ? (fmt12(e.start)+'–'+fmt12(e.end)) : '',
+      meta: meta.join(' · '),
+      type: e.type,
+      done: !!state.todoDone[todoKey(e)],
+      extra: false
+    };
+  });
+  state.extraTodos.filter(function(t){ return t.date===date && !t.removed; }).forEach(function(t){
+    items.push({
+      key:'x:'+t.id,
+      title:t.title,
+      when:'',
+      meta:'Extra',
+      type:'other',
+      done:!!t.done,
+      extra:true,
+      extraId:t.id
+    });
+  });
+  return items;
+}
+
+function renderTodos(){
+  var mount=document.getElementById('todoMount');
+  var sub=document.getElementById('todoSub');
+  var prog=document.getElementById('todoProg');
+  if(!mount) return;
+  var date=todayISO();
+  if(sub) sub.textContent=prettyDate(date)+' · pulled from today’s schedule';
+  var items=todaysTodoItems();
+  var done=items.filter(function(i){ return i.done; }).length;
+  if(prog) prog.textContent=items.length ? (done+' of '+items.length+' done') : 'Nothing on the calendar for today yet.';
+  if(!items.length){
+    mount.innerHTML='<div class="empty">Add classes and plans on Schedule (or in chat). They show up here as today’s checklist.</div>';
+    return;
+  }
+  mount.innerHTML='<div class="todo-list"></div>';
+  var wrap=mount.querySelector('.todo-list');
+  items.forEach(function(item){
+    var row=el('div','todo-row'+(item.done?' done':''),'');
+    row.innerHTML='<input type="checkbox"><div><div class="ttl"></div><div class="meta"></div></div><div class="when"></div>';
+    var cb=row.querySelector('input');
+    cb.checked=item.done;
+    row.querySelector('.ttl').textContent=item.title;
+    row.querySelector('.ttl').style.borderLeft='3px solid '+(TYPE_COLOR[item.type]||'#888');
+    row.querySelector('.ttl').style.paddingLeft='8px';
+    row.querySelector('.meta').textContent=item.meta;
+    row.querySelector('.when').textContent=item.when;
+    cb.addEventListener('change', function(){
+      if(item.extra){
+        var t=(state.extraTodos||[]).filter(function(x){ return x.id===item.extraId; })[0];
+        if(t) t.done=cb.checked;
+      } else {
+        if(!state.todoDone) state.todoDone={};
+        if(cb.checked) state.todoDone[item.key]=true;
+        else delete state.todoDone[item.key];
+      }
+      saveState();
+      renderTodos();
+    });
+    wrap.appendChild(row);
+  });
 }
 
 function renderCalendar(){
@@ -2929,11 +2737,6 @@ function updateSyncBanner(){
     text.textContent='Firebase is not loaded yet. Open Settings.';
     btn.textContent='Settings';
   }
-  var host=document.getElementById('hostBanner');
-  if(host){
-    var httpsAway=location.protocol==='https:' && !/localhost|127\.0\.0\.1/i.test(location.hostname);
-    host.hidden=!httpsAway;
-  }
 }
 
 function openChat(){
@@ -2990,7 +2793,9 @@ function applyRemoteDoc(doc){
       settings: Object.assign(defaultState().settings, (remote.state.settings||{})),
       budget: Object.assign(defaultState().budget, (remote.state.budget||{})),
       assignments: remote.state.assignments||[],
-      agentMemory: Object.assign({facts:[], people:{}}, (remote.state.agentMemory||{}))
+      agentMemory: Object.assign({facts:[], people:{}}, (remote.state.agentMemory||{})),
+      todoDone: remote.state.todoDone||{},
+      extraTodos: remote.state.extraTodos||[]
     });
   persistLocal();
   applyingRemote=false;
@@ -3074,7 +2879,7 @@ document.addEventListener('visibilitychange', function(){
 function refreshAll(){
   fillForms();
   renderFixedList(); renderFlexList(); renderCalendar(); renderUnscheduled(); renderChat(); renderBudget();
-  renderMemory();
+  renderMemory(); renderTodos();
 }
 
 function fillForms(){
@@ -3086,21 +2891,12 @@ function fillForms(){
   var campusEl=document.getElementById('s_campus');
   if(homeEl) homeEl.value=state.settings.homePlace||'';
   if(campusEl) campusEl.value=state.settings.campusPlace||'Ookayama';
-  document.getElementById('apiKey').value=state.settings.apiKey||'';
-  var ou=document.getElementById('s_ollama');
-  var om=document.getElementById('s_ollamaModel');
-  var ag=document.getElementById('s_agent');
-  var or=document.getElementById('s_ollama_remote');
-  if(ou) ou.value=state.settings.ollamaUrl||'http://127.0.0.1:11434';
-  if(or) or.value=state.settings.ollamaRemoteUrl||'';
-  if(om) om.value=state.settings.ollamaModel||'llama3.1:8b';
-  if(ag) ag.value=state.settings.agentBackend||'cloud';
   var wk=document.getElementById('s_worker');
   if(wk) wk.value=state.settings.agentWorkerUrl||window.WEEKPLAN_AGENT_URL||'';
   var pr=document.getElementById('s_priorities');
   if(pr) pr.value=state.settings.priorities||'';
   document.getElementById('e_date').value=todayISO();
-  updateOllamaHint();
+  updateAgentHint();
 }
 
 function renderMemory(){
@@ -3147,7 +2943,7 @@ document.getElementById('todayBtn').addEventListener('click', function(){
   state.selectedDate=todayISO(); saveState(); renderCalendar();
 });
 document.getElementById('regenBtn').addEventListener('click', function(){
-  generateSchedule(weekMonday(state.selectedDate)); renderCalendar(); renderUnscheduled();
+  generateSchedule(weekMonday(state.selectedDate)); renderCalendar(); renderUnscheduled(); renderTodos();
 });
 document.getElementById('chatClose').addEventListener('click', closeChat);
 document.getElementById('emClose').addEventListener('click', closeEventDetail);
@@ -3240,21 +3036,27 @@ document.getElementById('addExpense').addEventListener('click', function(){
   saveState(); renderBudget();
 });
 document.getElementById('saveApiKey').addEventListener('click', function(){
-  state.settings.apiKey=document.getElementById('apiKey').value.trim();
-  var ou=document.getElementById('s_ollama');
-  var om=document.getElementById('s_ollamaModel');
-  var or=document.getElementById('s_ollama_remote');
-  if(ou) state.settings.ollamaUrl=ou.value.trim()||'http://127.0.0.1:11434';
-  if(or) state.settings.ollamaRemoteUrl=or.value.trim();
-  if(om) state.settings.ollamaModel=om.value.trim()||'llama3.1:8b';
   var pr=document.getElementById('s_priorities');
   if(pr) state.settings.priorities=pr.value.trim();
-  var ag=document.getElementById('s_agent');
   var wk=document.getElementById('s_worker');
   if(wk) state.settings.agentWorkerUrl=wk.value.trim();
-  if(ag) state.settings.agentBackend=ag.value||'cloud';
+  state.settings.agentBackend='cloud';
   saveState();
-  updateOllamaHint();
+  updateAgentHint();
+});
+function addExtraTodo(){
+  var input=document.getElementById('todoExtra');
+  var title=(input && input.value || '').trim();
+  if(!title) return;
+  if(!state.extraTodos) state.extraTodos=[];
+  state.extraTodos.push({id:uid(), date:todayISO(), title:title, done:false});
+  input.value='';
+  saveState();
+  renderTodos();
+}
+document.getElementById('addTodoExtra').addEventListener('click', addExtraTodo);
+document.getElementById('todoExtra').addEventListener('keydown', function(e){
+  if(e.key==='Enter'){ e.preventDefault(); addExtraTodo(); }
 });
 document.getElementById('saveFb').addEventListener('click', function(){
   try{
