@@ -581,6 +581,7 @@ function loadState(){
     (merged.generated||[]).forEach(function(e){
       if(!e.date && e.day) e.date = dateForDayName(e.day, weekMonday(merged.selectedDate||todayISO()));
     });
+    merged.generated=dedupeEventList(merged.generated||[]);
     return merged;
   }catch(e){ return defaultState(); }
 }
@@ -734,10 +735,27 @@ function generateSchedule(weekMon){
   var ready=state.settings.getReadyMins||0;
   var weekDates={};
   DAYS.forEach(function(day,i){ weekDates[day]=addDaysISO(weekMon,i); });
+  var weekEnd=addDaysISO(weekMon,6);
+  var thisMon=weekMonday(todayISO());
 
   state.generated = (state.generated||[]).filter(function(e){
-    return e.date < weekMon || e.date > addDaysISO(weekMon,6) || e.keep;
+    if(!e || e.virtual) return false;
+    var inWeek=e.date>=weekMon && e.date<=weekEnd;
+    if(!inWeek) return true;
+    return !!e.keep;
   });
+
+  var occupied={};
+  function markBusy(date, start, title, sourceId){
+    occupied[date+'|'+(sourceId||'')]=true;
+    occupied[date+'|'+(start||'')+'|'+(title||'')]=true;
+  }
+  (state.generated||[]).forEach(function(e){
+    if(e.date>=weekMon && e.date<=weekEnd) markBusy(e.date, e.start, e.title, e.sourceId);
+  });
+  function already(date, start, title, sourceId){
+    return occupied[date+'|'+(sourceId||'')] || occupied[date+'|'+(start||'')+'|'+(title||'')];
+  }
 
   var events=[], unscheduled=[], freeByDay={};
 
@@ -751,8 +769,10 @@ function generateSchedule(weekMon){
     state.fixed.forEach(function(f){
       if(templateDays(f).indexOf(day)===-1) return;
       if(f.recur==='once' && f.onceWeek && f.onceWeek!==weekMon) return;
+      if(already(date, f.start, f.title, f.id)) return;
       var s=toMin(f.start), e=toMin(f.end);
       events.push({id:uid(), title:f.title, type:f.type, day:day, date:date, start:f.start, end:f.end, notes:f.notes, sourceId:f.id, recur:f.recur||'weekly'});
+      markBusy(date, f.start, f.title, f.id);
       busy.push([s,e]);
       if(f.needsCommute){
         var cm=state.settings.commuteMins||0;
@@ -769,16 +789,22 @@ function generateSchedule(weekMon){
     var list=freeByDay[day];
     var slot=takeSlot(list, duration, preferredStart);
     if(!slot) return false;
+    var st=toHHMM(slot[0]), en=toHHMM(slot[1]), dt=weekDates[day];
+    if(already(dt, st, label||task.title, task.id)) return false;
     events.push({
-      id:uid(), title:label||task.title, type:task.type, day:day, date:weekDates[day],
-      start:toHHMM(slot[0]), end:toHHMM(slot[1]), cost:task.cost, notes:task.notes, sourceId:task.id,
+      id:uid(), title:label||task.title, type:task.type, day:day, date:dt,
+      start:st, end:en, cost:task.cost, notes:task.notes, sourceId:task.id,
       ramble:task.ramble, place:task.place, who:task.who
     });
+    markBusy(dt, st, label||task.title, task.id);
     return true;
   }
 
   var dayCursorIdx=0;
   state.flexible.forEach(function(task){
+    var homeWeek=task.forWeek || thisMon;
+    if(homeWeek!==weekMon) return;
+    if((state.generated||[]).some(function(e){ return e.sourceId===task.id && e.date>=weekMon && e.date<=weekEnd; })) return;
     var duration=Math.max(15, Math.round(task.session||60));
     var totalMins=Math.round((task.hours||0)*60);
     var sessions=Math.max(1, Math.round(totalMins/duration) || 1);
@@ -853,16 +879,24 @@ function generateSchedule(weekMon){
   stampPrepBlocks(events, weekDates);
 
   state.generated = state.generated.concat(events);
+  pruneGenerated();
   state.unscheduled = unscheduled;
   saveState();
 }
 
 function eventsOn(date){
-  var placed=(state.generated||[]).filter(function(e){ return e.date===date; });
-  var monday=weekMonday(date);
-  var weekPlaced=(state.generated||[]).some(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6) && e.type!=='buffer'; });
-  if(weekPlaced || placed.length) return placed.sort(function(a,b){ return toMin(a.start)-toMin(b.start); });
-  return expandTemplates(date);
+  var placed=(state.generated||[]).filter(function(e){ return e.date===date && !e.virtual; });
+  var have={};
+  placed.forEach(function(e){
+    if(e.sourceId) have['src:'+e.sourceId]=true;
+    have['t:'+(e.start||'')+'|'+(e.title||'')]=true;
+  });
+  expandTemplates(date).forEach(function(v){
+    if(v.sourceId && have['src:'+v.sourceId]) return;
+    if(have['t:'+(v.start||'')+'|'+(v.title||'')]) return;
+    placed.push(v);
+  });
+  return placed.sort(function(a,b){ return toMin(a.start)-toMin(b.start); });
 }
 
 function realEventsOn(date){
@@ -990,9 +1024,43 @@ function expandTemplates(date){
 }
 
 function ensureWeek(weekMon){
-  weekMon=weekMon||weekMonday(state.selectedDate);
-  var has=(state.generated||[]).some(function(e){ return e.date>=weekMon && e.date<=addDaysISO(weekMon,6) && e.type!=='buffer'; });
-  if(!has && (state.fixed.length||state.flexible.length)) generateSchedule(weekMon);
+  /* Viewing another week must not copy this week's chores into storage.
+     Weekly classes overlay via expandTemplates. Rebuild week is explicit. */
+}
+
+function eventDedupeKey(e){
+  return (e.date||'')+'|'+(e.start||'')+'|'+(e.end||'')+'|'+(e.title||'')+'|'+(e.type||'');
+}
+
+function dedupeEventList(list){
+  var seen={}, out=[];
+  (list||[]).forEach(function(e){
+    if(!e || e.virtual || !e.date) return;
+    var k=eventDedupeKey(e);
+    if(seen[k]) return;
+    seen[k]=true;
+    out.push(e);
+  });
+  return out;
+}
+
+function pruneGenerated(){
+  var thisMon=weekMonday(todayISO());
+  var flexIds={};
+  (state.flexible||[]).forEach(function(f){ flexIds[f.id]=true; });
+  var weeklyIds={};
+  (state.fixed||[]).forEach(function(f){
+    if((f.recur||'weekly')==='weekly') weeklyIds[f.id]=true;
+  });
+  var out=dedupeEventList(state.generated||[]);
+  out=out.filter(function(e){
+    var mon=weekMonday(e.date);
+    if(mon<=thisMon) return true;
+    if(weeklyIds[e.sourceId] || e.type==='commute' || e.type==='buffer') return false;
+    if(flexIds[e.sourceId]) return false;
+    return !!e.keep;
+  });
+  state.generated=out;
 }
 
 function parseDayTokens(text){
@@ -1174,7 +1242,8 @@ function placeFlexibleTask(opts){
     id:uid(), title:title, type:type, hours:(n*sess)/60, session:sess,
     preferredDay:opts.days && opts.days.length===1?opts.days[0]:null,
     days:opts.days && opts.days.length?opts.days:undefined,
-    autoPlace:true, notes:opts.place||undefined, place:opts.place, ramble:opts.ramble
+    autoPlace:true, notes:opts.place||undefined, place:opts.place, ramble:opts.ramble,
+    forWeek: weekMonday(state.selectedDate)
   });
   generateSchedule(weekMonday(state.selectedDate));
   var id=state.flexible[state.flexible.length-1].id;
@@ -1396,19 +1465,147 @@ function looksLikeDurationOnly(text){
   return t.length<32;
 }
 
+function looksLikeIntentCorrection(text){
+  var l=String(text||'').toLowerCase().trim();
+  return /^(no+|nope|nah|not that|that'?s not|i('m| am) saying|i meant|i mean|wrong|don'?t add|do not add|not a block|not an event)/.test(l);
+}
+
 function looksLikeFreshRequest(text){
   var l=String(text||'').toLowerCase();
   if(looksLikeDurationOnly(text)) return false;
-  return /i have |i'm going|im going|add |schedule |meeting with|class every|due /.test(l)
+  if(isClearScheduleIntent(text) || looksLikeIntentCorrection(text)) return true;
+  return /i have |i'm going|im going|add |meeting with|class every|due /.test(l)
     || (parseAtTime(text) && (parseDayTokens(text).length || /\btoday\b|\btomorrow\b/.test(l)));
 }
 
+function isJunkTitle(title){
+  var t=String(title||'');
+  return /type is not outing/i.test(t) || /clear my schedule/i.test(t) || /^clear (my )?(week|day|schedule)/i.test(t);
+}
+
 function scrubJunkEvents(){
-  state.generated=(state.generated||[]).filter(function(e){
-    return !/type is not outing/i.test(e.title||'');
+  state.generated=(state.generated||[]).filter(function(e){ return !isJunkTitle(e.title); });
+  state.flexible=(state.flexible||[]).filter(function(f){ return !isJunkTitle(f.title); });
+}
+
+function isClearScheduleIntent(text){
+  var l=String(text||'').toLowerCase();
+  if(/not a block|i('m| am) saying clear|meant (to )?clear|i mean clear/.test(l)) return true;
+  if(/\b(clear|wipe|empty|reset|free up)\b/.test(l) && /\b(schedule|calendar|week|day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|wed|thu|fri|sat|sun|everything|plans?)\b/.test(l)) return true;
+  if(/\b(delete|remove|cancel)\b.+\b(everything|all (my )?(plans|events|blocks)|the (week|day))\b/.test(l)) return true;
+  if(/nothing (on|for) (mon|tue|wed|thu|fri|sat|sun|today|tomorrow|this week)/.test(l)) return true;
+  return false;
+}
+
+function daysToClearFromText(text){
+  var l=String(text||'').toLowerCase();
+  var named=parseDayTokens(text);
+  if(named.length) return named;
+  if(/\b(this week|the week|whole week|entire week|all week|my week)\b/.test(l)) return DAYS.slice();
+  if(/\btoday\b/.test(l)) return [dayNameOf(todayISO())];
+  if(/\btomorrow\b/.test(l)) return [dayNameOf(addDaysISO(todayISO(),1))];
+  if(/\b(my schedule|the schedule|calendar|everything)\b/.test(l)) return DAYS.slice();
+  return [];
+}
+
+function clearNamedDays(dayNames){
+  var monday=weekMonday(state.selectedDate);
+  var names=dayNames && dayNames.length ? dayNames : DAYS.slice();
+  var isoSet={};
+  names.forEach(function(d){
+    var iso=/^\d{4}-\d{2}-\d{2}$/.test(d) ? d : dateForDayName(d, monday);
+    if(iso) isoSet[iso]=true;
   });
-  state.flexible=(state.flexible||[]).filter(function(f){
-    return !/type is not outing/i.test(f.title||'');
+  var n=0;
+  state.generated=(state.generated||[]).filter(function(e){
+    if(isoSet[e.date]){ n++; return false; }
+    return true;
+  });
+  state.extraTodos=(state.extraTodos||[]).filter(function(t){ return !isoSet[t.date]; });
+  state.pendingAsk=null;
+  saveState();
+  var labels=Object.keys(isoSet).sort().map(function(iso){ return dayNameOf(iso); });
+  if(!n) return 'Those days were already empty ('+labels.join(', ')+').';
+  return 'Cleared '+labels.join(', ')+' — '+n+' block'+(n===1?'':'s')+' off. Not adding anything new.';
+}
+
+function interpretCommand(text){
+  return handleIntent(text);
+}
+
+function classifyIntent(text){
+  var raw=String(text||'').trim();
+  var l=raw.toLowerCase();
+  if(!l) return {kind:'empty'};
+  if(isSmallTalk(raw)) return {kind:'greet'};
+  if(isClearScheduleIntent(raw) || (looksLikeIntentCorrection(raw) && /\bclear\b/.test(l))){
+    return {kind:'clear', days:daysToClearFromText(raw)};
+  }
+  if(looksLikeIntentCorrection(raw)) return {kind:'correct'};
+  if(/what should i do|plan my (day|week)|what'?s (on )?(today|my day)|brief me|run of show|what do i have|what'?s going on/.test(l)) return {kind:'question'};
+  if(/^(what|when|where|who|how|do i|did i|is there|are there|can you tell|show me)\b/.test(l) && !parseAtTime(raw) && !/add |schedule a |book /.test(l)) return {kind:'question'};
+  if(/overslept|woke up late|slept in/.test(l)) return {kind:'shift'};
+  if(/regenerate|rebuild week|redo week/.test(l) && raw.length<50) return {kind:'rebuild'};
+  if(/(add expense|spent|log)\s*\$?\d/.test(l) || /income|allowance/.test(l)) return {kind:'expense'};
+  if(/i live|home is|my home is|my station is/.test(l)) return {kind:'home'};
+  if(/\b(skip|cancel)\b/.test(l) || /too tired|i'?m tired|im tired/.test(l)) return {kind:'skip'};
+  if(/^move /.test(l) || /move .+ to \d/.test(l)) return {kind:'move'};
+  if(looksLikeEdit(l)) return {kind:'edit'};
+  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return {kind:'add_flex'};
+  if(parseRange(raw)) return {kind:'add_timed'};
+  if(parseAtTime(raw) && (/meeting|class|i have|going |go to |dentist|workout|gym|study|office/.test(l) || guessType(raw)!=='other')) return {kind:'add_timed'};
+  if(parseCountPerWeek(l) || parseSessionMins(l)) return {kind:'add_flex'};
+  if(/\b(need to study|study for|put .+ on (the )?(week|calendar)|add (a |my )?(gym|laundry|workout|class)|gym twice|laundry this week)\b/.test(l)) return {kind:'add_flex'};
+  if(/\b(please |can you |could you )?(add|book|put|schedule) (a |the |my )/.test(l)) return {kind:'add_flex'};
+  return {kind:'talk'};
+}
+
+function handleIntent(text){
+  var intent=classifyIntent(text);
+  if(intent.kind==='clear'){
+    var days=intent.days && intent.days.length ? intent.days : daysToClearFromText(text);
+    if(!days.length){
+      state.pendingAsk=null;
+      return 'Which days should I clear — today, Mon–Wed, or the whole week?';
+    }
+    return clearNamedDays(days);
+  }
+  if(intent.kind==='question'){
+    var lower=String(text||'').toLowerCase();
+    if(/week/.test(lower) && !/today|day/.test(lower)) return weekBriefing();
+    return dayBriefing(/\btomorrow\b/.test(lower)?addDaysISO(todayISO(),1):todayISO());
+  }
+  if(intent.kind==='correct'){
+    state.pendingAsk=null;
+    scrubJunkEvents();
+    saveState();
+    return 'Got it — I won’t add that as a block. Tell me the actual ask: clear days, skip something, or put a real event on.';
+  }
+  return null;
+}
+
+function titleLooksLikeUtterance(title, userText){
+  var t=String(title||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+  var u=String(userText||'').toLowerCase().replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim();
+  if(!t) return false;
+  if(t.split(' ').length>=6) return true;
+  if(/^(clear|how long|not a|i m saying|i am saying|please|can you|wipe|empty)/.test(t)) return true;
+  if(u && (u===t || u.indexOf(t)===0) && t.split(' ').length>=3) return true;
+  return false;
+}
+
+function gateActions(actions, userText){
+  var intent=classifyIntent(userText);
+  var noAdd={greet:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1};
+  return (actions||[]).filter(function(a){
+    if(!a || !a.op) return false;
+    if(a.op==='add'){
+      if(noAdd[intent.kind]) return false;
+      if(titleLooksLikeUtterance(a.title||a.eventTitleMatch||'', userText)) return false;
+      if(intent.kind==='talk' && !a.start && !a.hours && !a.sessionMins && !a.end) return false;
+      return true;
+    }
+    return true;
   });
 }
 
@@ -1465,10 +1662,12 @@ function handlePending(text){
   var p=state.pendingAsk;
   if(!p) return null;
   var lower=text.toLowerCase().trim();
-  if(looksLikeFreshRequest(text) && !looksLikeDurationOnly(text)){
+  var cmd=interpretCommand(text);
+  if(cmd) return cmd;
+  if(looksLikeIntentCorrection(text) || (looksLikeFreshRequest(text) && !looksLikeDurationOnly(text))){
     state.pendingAsk=null;
     saveState();
-    return null;
+    return interpretCommand(text);
   }
   if(looksLikeEdit(lower)){
     state.pendingAsk=null;
@@ -1629,6 +1828,8 @@ function parseDueDate(text){
 }
 
 function localParse(text, allowSchedule){
+  var cmd0=interpretCommand(text);
+  if(cmd0) return cmd0;
   var pending=handlePending(text);
   if(pending) return pending;
   var lower=text.toLowerCase().trim();
@@ -1814,11 +2015,8 @@ function localParse(text, allowSchedule){
     return 'Noted the '+qtitle.replace(/^Study for /,'')+' around '+prettyDate(dueQ)+'. I placed ~'+hoursQ+'h of study in open gaps before then — not the quiz itself on the calendar unless you give a sitting time.';
   }
 
-  var wantsOnCal=!chitchat && !looksLikeEdit(lower) && (
-    nFlex || sessFlex || days.length || factsF.place ||
-    /add |put |schedule |plan |book |block |set aside |i (?:have|want|need|gotta|got to|should|am|i'm) |going |go to |meet |remind |please |can you /.test(lower) ||
-    (guessType(text)!=='other' && guessType(text)!=='meeting')
-  );
+  var intent=classifyIntent(text);
+  var wantsOnCal=!chitchat && intent.kind==='add_flex';
 
   if(wantsOnCal){
     var n=nFlex || (days.length?Math.max(1,days.length):1);
@@ -1933,7 +2131,13 @@ function sendChat(){
     saveState(); refreshAll();
     return;
   }
-  if(state.pendingAsk && !looksLikeFreshRequest(text) && !looksLikeEdit(text.toLowerCase())){
+  var commandHit=interpretCommand(text);
+  if(commandHit){
+    state.chatLog.push({role:'assistant', text:commandHit});
+    saveState(); refreshAll();
+    return;
+  }
+  if(state.pendingAsk && !looksLikeFreshRequest(text) && !looksLikeEdit(text.toLowerCase()) && !looksLikeIntentCorrection(text)){
     var pending=handlePending(text);
     if(pending){
       state.chatLog.push({role:'assistant', text:pending});
@@ -1941,10 +2145,10 @@ function sendChat(){
       return;
     }
   }
-  if(state.pendingAsk && (looksLikeFreshRequest(text) || looksLikeEdit(text.toLowerCase()))){
+  if(state.pendingAsk && (looksLikeFreshRequest(text) || looksLikeEdit(text.toLowerCase()) || looksLikeIntentCorrection(text))){
     state.pendingAsk=null;
   }
-  if(looksLikeDirectScheduleTalk(text)){
+  if(looksLikeDirectScheduleTalk(text) || isClearScheduleIntent(text)){
     var localHit=rambleParse(text, true);
     if(localHit){
       state.chatLog.push({role:'assistant', text:localHit});
@@ -2013,7 +2217,7 @@ function plannerSchema(){
   return 'Return ONLY minified JSON: {"think":string,"reply":string,"ask":null|{"kind":"duration"|"when"|"who"|"where"|"leaveFrom"|"home"|"aboutWhat","topic":string},"actions":[...same ops as before...]} '.replace('[...same ops as before...]','[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home"|"remember"|"forget","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]')+'You are a personable scheduling friend for Sara (Science Tokyo), not a form. reply must sound like a text: contractions, one clear question if anything is missing. NEVER say “What’s going on the week? Say it however you want.” Hi/hello → greet, mention today if there are events, ask what’s up. Meeting + time, unknown purpose → still remember the time, ask what it’s for, title like Meeting: Yap or Study for quiz. Quiz/exam rambles → study blocks + due, NEVER a title like “Quiz Is Needed About Work”. '+plannerContext()+'\nRULES: (1) think first. (2) Corrections update. (3) Ask, don’t invent times. (4) Place in listed gaps. (5) Online: meeting, no commute.';
 }
 
-function applyPlannerJSON(textOut, spokenReply){
+function applyPlannerJSON(textOut, spokenReply, userText){
   var parsed;
   if(textOut && typeof textOut==='object') parsed=textOut;
   else {
@@ -2026,9 +2230,12 @@ function applyPlannerJSON(textOut, spokenReply){
   }
   var actions=parsed.actions||[];
   var ask=parsed.ask||null;
-  actions=filterGuessedAdds(actions, ask);
+  actions=gateActions(filterGuessedAdds(actions, ask), userText||'');
+  if(classifyIntent(userText||'').kind==='clear'){
+    return handleIntent(userText)||clearNamedDays(daysToClearFromText(userText));
+  }
   applyActions(actions);
-  if(ask && ask.kind){
+  if(ask && ask.kind && classifyIntent(userText||'').kind!=='correct' && classifyIntent(userText||'').kind!=='clear' && classifyIntent(userText||'').kind!=='question'){
     state.pendingAsk={kind:ask.kind==='who'?'withWho':ask.kind, topic:ask.topic||'', fromAgent:true, draft:state.pendingAsk&&state.pendingAsk.draft};
   }
   var reply=String(spokenReply||parsed.reply||'').trim();
@@ -2159,13 +2366,14 @@ function callAgentWorker(userText){
     headers:{'content-type':'application/json'},
     body: JSON.stringify({
       message:userText,
+      intent: classifyIntent(userText).kind,
       history:history,
       snapshot:plannerContext()
     })
   }).then(function(r){
     return r.json().then(function(data){
       if(!r.ok) throw new Error(data.error||('Worker '+r.status));
-      return applyPlannerJSON(data);
+      return applyPlannerJSON(data, null, userText);
     });
   });
 }
@@ -2180,6 +2388,13 @@ function callPlannerLLM(userText){
 
 function applyActions(actions){
   actions.forEach(function(a){
+    if(a.op==='clear' || a.op==='clearDays' || a.op==='clearWeek'){
+      var days=a.days || (a.day?[a.day]:[]) || [];
+      if(a.op==='clearWeek' || (!days.length && /\bweek\b/i.test(a.note||a.title||''))) days=DAYS.slice();
+      if(!days.length && a.date) days=[a.date];
+      clearNamedDays(days.length?days:DAYS.slice());
+      return;
+    }
     if(a.op==='regenerate'){ generateSchedule(weekMonday(state.selectedDate)); return; }
     if(a.op==='home' && (a.homePlace||a.note||a.title)){
       rememberHome(a.homePlace||a.note||a.title);
@@ -2797,6 +3012,7 @@ function applyRemoteDoc(doc){
       todoDone: remote.state.todoDone||{},
       extraTodos: remote.state.extraTodos||[]
     });
+  pruneGenerated();
   persistLocal();
   applyingRemote=false;
   refreshAll();
@@ -2930,13 +3146,11 @@ document.getElementById('viewSeg').addEventListener('click', function(e){
 document.getElementById('prevRange').addEventListener('click', function(){
   if(state.calView==='month'){ var d=parseISO(state.selectedDate); d.setMonth(d.getMonth()-1); state.selectedDate=toISO(d); }
   else state.selectedDate=addDaysISO(state.selectedDate, state.calView==='day'?-1:-7);
-  if(state.calView!=='month') ensureWeek(weekMonday(state.selectedDate));
   saveState(); renderCalendar();
 });
 document.getElementById('nextRange').addEventListener('click', function(){
   if(state.calView==='month'){ var d=parseISO(state.selectedDate); d.setMonth(d.getMonth()+1); state.selectedDate=toISO(d); }
   else state.selectedDate=addDaysISO(state.selectedDate, state.calView==='day'?1:7);
-  if(state.calView!=='month') ensureWeek(weekMonday(state.selectedDate));
   saveState(); renderCalendar();
 });
 document.getElementById('todayBtn').addEventListener('click', function(){
@@ -3356,9 +3570,8 @@ function initAll(){
   if(!state.chatLog.length){
     state.chatLog.push({role:'assistant', text:'A few tradeoffs first — then dump the week in chat.'});
   }
-  var monday=weekMonday(state.selectedDate);
-  var hasThisWeek=(state.generated||[]).some(function(e){ return e.date>=monday && e.date<=addDaysISO(monday,6); });
-  if(!hasThisWeek && (state.fixed.length||state.flexible.length)) generateSchedule(monday);
+  pruneGenerated();
+  persistLocal();
   refreshAll();
   maybeOnboard();
   initFirebase();
