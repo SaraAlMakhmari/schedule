@@ -201,7 +201,9 @@
   }
   .chat-input{display:flex;border-top:1px solid var(--border);flex:none;}
   .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:88px;color:var(--text);}
-  .chat-input button{border:none;background:none;color:var(--accent-text);font-weight:600;padding:0 14px;}
+  .chat-input button#chatMic{font-size:.78rem;padding:0 10px;color:var(--text-soft);}
+  .chat-input button#chatMic.on{color:var(--brick);font-weight:700;}
+  .chat-close.on{color:var(--accent-text);font-weight:600;}
   .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;flex:none;}
   .chip{font-size:.7rem;background:var(--bg-soft);border:1px solid var(--border);border-radius:20px;padding:4px 9px;color:var(--text-soft);}
   .chip:hover{border-color:var(--accent);color:var(--accent-text);}
@@ -262,12 +264,15 @@
     <div class="sync-chip" id="syncChip">On this device only</div>
     <button class="btn secondary" id="authBtn" style="margin:0 2px 10px;width:calc(100% - 4px);font-size:.78rem;">Sign in</button>
     <div class="theme-toggle"><span>Dark</span><button id="themeToggle" type="button">☀</button></div>
-    <div class="hint">Free site on GitHub Pages. Sign in to sync Mac and phone.</div>
+    <div class="hint">The Mac hosts the app. Sign in to sync. GitHub is not the agent.</div>
   </nav>
 
   <div class="workspace">
   <main>
     <section class="view active" id="view-schedule">
+      <div class="banner warn" id="hostBanner" hidden>
+        <span id="hostBannerText">This HTTPS site cannot use Ollama on your Mac. Open Weekplan from this laptop instead (double-click Weekplan.command).</span>
+      </div>
       <div class="banner warn" id="syncBanner" hidden>
         <span id="syncBannerText">Sign in with Google on this device so Mac and phone share the same week.</span>
         <button class="btn" type="button" id="gotoFirebase">Sign in</button>
@@ -388,10 +393,10 @@
         <h3>Firebase sync (free Spark plan)</h3>
         <ol class="steps">
           <li>Firebase console → Project settings → Your apps → Web app → copy the config object.</li>
-          <li>Authentication → Google → Enable. Authorized domains: <code>saraalmakhmari.github.io</code> and <code>localhost</code>.</li>
+          <li>Authentication → Google → Enable. Authorized domains: <code>localhost</code>, and your Mac’s Wi‑Fi IP (or Tailscale name) if the phone opens Weekplan there.</li>
           <li>Firestore → Create database → paste rules from <code>firestore.rules</code>.</li>
-          <li>Paste the config below (or into <code>firebase-config.js</code> on GitHub so your phone has it too).</li>
-          <li>Sign in. Do not use GitHub to sync your week — only to host these files.</li>
+          <li>Paste the config below if needed. Chat with Ollama from the Mac-hosted page, not github.io.</li>
+          <li>Sign in on that local page so Mac and phone share the week.</li>
         </ol>
         <label>Firebase config JSON</label>
         <textarea id="fbConfig" rows="7" placeholder='{"apiKey":"...","authDomain":"...","projectId":"..."}'></textarea>
@@ -412,20 +417,22 @@
       </div>
       <div class="card">
         <h3>Your agent</h3>
-        <p class="sub" style="margin-bottom:10px;">Ollama can stay on this Mac and the phone can use that same model. The phone must <strong>not</strong> use the GitHub HTTPS site for chat — the browser blocks http Ollama. On the Mac run <code>./mac-ollama.sh</code>, then on the phone open the <code>http://…:5500</code> address it prints (same Wi‑Fi, Mac awake). Sign-in still syncs memory.</p>
+        <p class="sub" style="margin-bottom:10px;">Cross-device brain: Gemini Flash behind a Cloudflare Worker (free, key not in the page). Edit <code>agent/brain.js</code>, redeploy the worker. Firestore still syncs laptop and iPhone. Ollama is optional and Mac-only.</p>
         <div class="grid-form">
           <div><label>Brain</label>
             <select id="s_agent">
-              <option value="ollama">Ollama on the Mac (phone via Mac’s http page)</option>
-              <option value="gemini">Cloud Gemini (works on github.io, weaker for you)</option>
-              <option value="auto">Ollama if reachable, else Gemini</option>
+              <option value="cloud">Cloud agent (Gemini Worker — phone + laptop)</option>
+              <option value="ollama">Ollama on this Mac only</option>
+              <option value="gemini">Gemini from the browser (key in page — avoid)</option>
+              <option value="auto">Cloud worker, else Ollama, else Gemini</option>
               <option value="webllm">In this tab only</option>
             </select>
           </div>
+          <div><label>Agent worker URL</label><input type="text" id="s_worker" placeholder="https://weekplan-agent.…workers.dev"></div>
           <div><label>Ollama on this Mac</label><input type="text" id="s_ollama" placeholder="http://127.0.0.1:11434"></div>
-          <div><label>Ollama from the phone / HTTPS</label><input type="text" id="s_ollama_remote" placeholder="http://192.168.x.x:11434 or https://….ts.net"></div>
+          <div><label>Ollama from the phone / HTTPS</label><input type="text" id="s_ollama_remote" placeholder="optional Tailscale https://"></div>
           <div><label>Ollama model</label><input type="text" id="s_ollamaModel" placeholder="llama3.1:8b"></div>
-          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="AIza… fallback only" autocomplete="off"></div>
+          <div><label>Optional Gemini key</label><input type="password" id="apiKey" placeholder="Only if you skip the Worker" autocomplete="off"></div>
         </div>
         <label style="margin-top:8px;">How I want the week decided</label>
         <textarea id="s_priorities" rows="4" placeholder="Classes first, then dues, then rest…"></textarea>
@@ -441,10 +448,10 @@
       </div>
       <div class="card">
         <h3>Your data</h3>
-        <p class="sub" style="margin-bottom:10px;">Export before clearing the browser. After you sign in, Firestore is the source of truth across devices.</p>
+        <p class="sub" style="margin-bottom:10px;">Export a backup first if you still want this week. <strong>Reset account</strong> wipes the planner on this browser and in Firestore (same Google login), then reloads so you get the setup questions. It does not delete your Google account.</p>
         <button class="btn secondary" id="exportBtn" type="button">Export backup</button>
         <label class="btn secondary" style="display:inline-block;margin-left:8px;">Import backup<input type="file" id="importFile" accept="application/json" style="display:none;"></label>
-        <button class="btn warn" id="resetBtn" type="button" style="margin-left:8px;">Reset</button>
+        <button class="btn warn" id="resetBtn" type="button" style="margin-left:8px;">Reset account</button>
       </div>
     </section>
   </main>
@@ -452,7 +459,11 @@
   <aside class="chat-pane" id="chatDrawer">
     <div class="chat-head">
       <div>Chat<span class="sub-line" id="agentLine">Same agent on every signed-in device.</span></div>
-      <button class="chat-close" id="chatClose" type="button" aria-label="Collapse chat">–</button>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button class="chat-close" id="setupTradeoffs" type="button">Setup</button>
+        <button class="chat-close" id="speakToggle" type="button" title="Speak replies">Speak</button>
+        <button class="chat-close" id="chatClose" type="button" aria-label="Collapse chat">–</button>
+      </div>
     </div>
     <div class="chat-log" id="chatLog"></div>
     <div class="chat-suggestions">
@@ -465,7 +476,8 @@
       <button class="chip" type="button" data-fill="Plan my week">week plan</button>
     </div>
     <div class="chat-input">
-      <textarea id="chatInput" placeholder="Anything for the week — no special phrasing. Time optional."></textarea>
+      <button id="chatMic" type="button" title="Dictate">Mic</button>
+      <textarea id="chatInput" placeholder="Type, Mic, or the phone keyboard microphone."></textarea>
       <button id="chatSend" type="button">Send</button>
     </div>
   </aside>
@@ -525,7 +537,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaRemoteUrl:'', ollamaModel:'llama3.1:8b', agentBackend:'ollama', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon' },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, apiKey:'', apiModel:'claude-haiku-4-5-20251001', theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, ollamaUrl:'http://127.0.0.1:11434', ollamaRemoteUrl:'', ollamaModel:'llama3.1:8b', agentBackend:'cloud', agentWorkerUrl:'', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon', speakReplies:true },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -992,9 +1004,15 @@ function parseDayTokens(text){
 }
 function parseClock(str){
   if(!str) return null;
-  var jp=String(str).match(/(\d{1,2})\s*時\s*(?:(\d{1,2})\s*分)?/);
+  var raw=String(str).toLowerCase().trim();
+  var words={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12};
+  if(words[raw.replace(/\s*(o'?clock|am|pm)$/,'')]){
+    var w=raw.match(/^(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(am|pm)?/);
+    if(w) return parseClock(words[w[1]]+' '+(w[2]||''));
+  }
+  var jp=raw.match(/(\d{1,2})\s*時\s*(?:(\d{1,2})\s*分)?/);
   if(jp) return toHHMM((+jp[1])*60+(jp[2]?+jp[2]:0));
-  var m=String(str).toLowerCase().match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  var m=raw.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
   if(!m) return null;
   var h=+m[1], mi=m[2]?+m[2]:0, ap=m[3];
   if(ap==='pm' && h<12) h+=12;
@@ -1010,11 +1028,12 @@ function parseRange(text){
 function guessType(text){
   var l=text.toLowerCase();
   if(/class|lecture|lab|seminar|授業|講義/.test(l)) return 'class';
-  if(/\bwork\b|shift|バイト/.test(l)) return 'work';
+  if(/quiz|exam|\btest\b|midterm|final exam/.test(l)) return 'study';
+  if(/study|homework|assignment|essay|課題|レポート/.test(l)) return 'study';
   if(/boulder|climbing|noborock|workout|gym|lift|run|yoga|pilates|swim|climb|運動/.test(l)) return 'workout';
   if(/meal\s*prep|mealprep|grocer/.test(l)) return 'mealprep';
   if(/hangout|friends|hang out/.test(l)) return 'hangout';
-  if(/study|homework|assignment|midterm|essay|課題|レポート/.test(l)) return 'study';
+  if(/\bwork\b|shift|バイト/.test(l) && !/homework|workout|network/.test(l)) return 'work';
   if(/meeting|meet with|office hour|zoom|online call/.test(l)) return 'meeting';
   if(/outing|dinner|movie|concert|cafe|dentist|appointment|errand|shop|going |go to |headed |meet /.test(l)) return 'outing';
   if(/commute/.test(l)) return 'commute';
@@ -1022,6 +1041,8 @@ function guessType(text){
 }
 
 function parseAtTime(text){
+  var spoken=text.match(/\bat\s+(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\s*(am|pm|o'?clock)?\b/i);
+  if(spoken) return parseClock(spoken[1]+' '+(spoken[2]||''));
   var m=text.match(/\bat\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/i);
   if(m) return parseClock(m[1]);
   m=text.match(/\b(\d{1,2}:\d{2})\s*(am|pm)?\b/i);
@@ -1101,6 +1122,8 @@ function shortTitle(text, facts){
   var l=String(text||'').toLowerCase();
   var noun='';
   if(/boulder|noborock|ノボロック/.test(l)) noun='Bouldering';
+  else if(/quiz/.test(l)) noun='Study for quiz';
+  else if(/exam|midterm|final/.test(l)) noun='Study for exam';
   else if(/meeting|meet with|meet my/.test(l)) noun='Meeting';
   else if(/dentist/.test(l)) noun='Dentist';
   else if(/coffee/.test(l)) noun='Coffee';
@@ -1304,18 +1327,26 @@ function finishOutingDraft(draft){
   return bits.join('\n');
 }
 
+function isGenericMeetingTitle(title){
+  return /^(meeting)(\s*\(online\))?$/i.test(String(title||'').trim());
+}
+
 function continueDraft(draft){
+  var meeting=/meet/i.test(draft.title+' '+(draft.ramble||'')) || draft.type==='meeting';
+  if(meeting && isGenericMeetingTitle(draft.title)){
+    if(!draft.durationMins) draft.durationMins=60;
+    state.pendingAsk={kind:'aboutWhat', draft:draft};
+    saveState();
+    return 'Got it — '+prettyDate(draft.date)+' at '+fmt12(draft.start)+'. What’s the meeting for? (or who it’s with.) I’ll put that on the title.';
+  }
   if(!draft.durationMins){
     state.pendingAsk={kind:'duration', draft:draft};
     saveState();
-    return 'How long will "'+draft.title+'" be? Say 2 hours, 90 min, or until 8pm — I won’t guess.';
+    return 'How long will "'+draft.title+'" be? 45 min, 2 hours, or until 8pm is enough.';
   }
   draft.end=toHHMM(toMin(draft.start)+draft.durationMins);
-  var meeting=/meet/i.test(draft.title+' '+(draft.ramble||''));
-  if(meeting && !draft.who){
-    state.pendingAsk={kind:'withWho', draft:draft};
-    saveState();
-    return 'Who is "'+draft.title+'" with? I’ll keep that on the event when you tap it.';
+  if(meeting && !draft.who && !isGenericMeetingTitle(draft.title)){
+    /* title already specific — skip who unless still unknown */
   }
   if(draft.wantCommute && !draft.online && !draft.from){
     var origin=inferOrigin(draft.date, toMin(draft.start), draft.ramble||'');
@@ -1440,6 +1471,27 @@ function handlePending(text){
     state.pendingAsk=null;
     saveState();
     return 'Ok, dropped that. Say it again when you want.';
+  }
+  if(p.kind==='aboutWhat'){
+    var about=text.replace(/^(it'?s|its|about|for|with)\s+/i,'').trim();
+    if(about.length<2) return 'What’s it for — a class, Yap, office hours…?';
+    if(p.draft){
+      if(/^(with|yap|mentor|prof)/i.test(text.trim()) || /\bwith\b/i.test(text)){
+        p.draft.who=about.replace(/^with\s+/i,'');
+        p.draft.title='Meeting'+(p.draft.online?' (Online)':'');
+        p.draft.who=p.draft.who;
+      } else {
+        p.draft.title=about.charAt(0).toUpperCase()+about.slice(1);
+        if(!/meet/i.test(p.draft.title)) p.draft.title='Meeting: '+p.draft.title;
+      }
+      p.draft.type='meeting';
+      return continueDraft(p.draft);
+    }
+    var evA=lastTouchedEvent();
+    if(evA){ evA.title='Meeting: '+about; evA.keep=true; }
+    state.pendingAsk=null;
+    saveState();
+    return 'Renamed it to include '+about+'.';
   }
   if(p.kind==='duration'){
     if(!p.draft) return null;
@@ -1735,8 +1787,24 @@ function localParse(text, allowSchedule){
   var sessFlex=parseSessionMins(lower);
   var factsF=parseEventFacts(text);
   var titleFlex=factsF.title;
-  var chitchat=/^(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|nice|great|lol|haha|yes|no)[\s!.]*$/i.test(lower);
-  if(chitchat) return 'What’s going on the week? Say it however you want. I’ll ask if I need a length or where you’re leaving from.';
+  var chitchat=/^(hi|hey|hello|yo|hiya|sup|what'?s up|hows it going|how'?s it going|how are you|thanks|thank you|ok|okay|cool|nice|great|lol|haha|yes|no)[\s!.?]*$/i.test(lower);
+  if(chitchat) return smallTalkReply(lower);
+
+  if(/quiz|exam|midterm|\btest\b/.test(lower) && /study|need|prep|review/.test(lower) && !range){
+    var dueQ=parseDueDate(text) || (/\bnext week\b/.test(lower)?addDaysISO(todayISO(),7): (days.length?dateForDayName(days[days.length-1], weekMonday(state.selectedDate)):addDaysISO(todayISO(),5)));
+    var hmQ=lower.match(/(\d+(?:\.\d+)?)\s*(h|hr|hours?)/);
+    var hoursQ=hmQ?+hmQ[1]:null;
+    var qtitle=/quiz/.test(lower)?'Study for quiz':(/midterm/.test(lower)?'Study for midterm':'Study for exam');
+    if(!hoursQ){
+      state.pendingAsk={kind:'flexDuration', opts:{title:qtitle, type:'study', n:1, days:[], ramble:text, due:dueQ}};
+      saveState();
+      return 'I’ll put study time in before '+prettyDate(dueQ)+', not a fake “quiz” block. About how many hours do you need to prep?';
+    }
+    state.assignments=state.assignments||[];
+    state.assignments.push({id:uid(), title:qtitle.replace(/^Study for /,''), due:dueQ, hours:hoursQ, course:''});
+    generateSchedule(weekMonday(dueQ));
+    return 'Noted the '+qtitle.replace(/^Study for /,'')+' around '+prettyDate(dueQ)+'. I placed ~'+hoursQ+'h of study in open gaps before then — not the quiz itself on the calendar unless you give a sitting time.';
+  }
 
   var wantsOnCal=!chitchat && !looksLikeEdit(lower) && (
     nFlex || sessFlex || days.length || factsF.place ||
@@ -1825,6 +1893,19 @@ function findEvent(text, date){
   return bestScore>0?best:null;
 }
 
+function isSmallTalk(text){
+  var t=String(text||'').trim();
+  return /^(hi|hey|hello|yo|hiya|sup|what'?s up|hows it going|how'?s it going|how are you|good morning|good evening|thanks|thank you)[\s!.?]*$/i.test(t);
+}
+
+function smallTalkReply(lower){
+  var today=(state.generated||[]).filter(function(e){ return e.date===todayISO() && !e.skipped && e.type!=='commute' && e.type!=='buffer'; })
+    .sort(function(a,b){ return toMin(a.start)-toMin(b.start); });
+  var hi=/thanks|thank/.test(lower)?'You’re welcome.':'Hey — I’m here.';
+  if(!today.length) return hi+' Nothing pinned on today yet. What’s going on this week — a class, a meeting, something you need to study for?';
+  var first=today[0];
+  return hi+' Today starts with "'+first.title+'" at '+fmt12(first.start)+'. What else should I know — or what’s coming up this week?';
+}
 function sendChat(){
   var input=document.getElementById('chatInput');
   var text=input.value.trim();
@@ -1839,6 +1920,11 @@ function sendChat(){
     saveState(); refreshAll();
     return;
   }
+  if(isSmallTalk(text)){
+    state.chatLog.push({role:'assistant', text:smallTalkReply(text.toLowerCase())});
+    saveState(); refreshAll();
+    return;
+  }
   if(state.pendingAsk && !looksLikeFreshRequest(text) && !looksLikeEdit(text.toLowerCase())){
     var pending=handlePending(text);
     if(pending){
@@ -1850,18 +1936,44 @@ function sendChat(){
   if(state.pendingAsk && (looksLikeFreshRequest(text) || looksLikeEdit(text.toLowerCase()))){
     state.pendingAsk=null;
   }
+  if(looksLikeDirectScheduleTalk(text)){
+    var localHit=rambleParse(text, true);
+    if(localHit){
+      state.chatLog.push({role:'assistant', text:localHit});
+      saveState(); refreshAll();
+      return;
+    }
+  }
   state.chatLog.push({role:'assistant', text:'', thinking:true, thinkLabel:'Thinking'});
   startThinkAnim();
   callPlannerLLM(text).then(function(reply){
     stopThinkAnim();
+    if(isCannedPlannerSpeak(reply)) reply=personableFallback(text, reply);
     state.chatLog[state.chatLog.length-1]={role:'assistant', text:reply};
+    speakText(reply);
     saveState(); refreshAll();
   }).catch(function(err){
     stopThinkAnim();
-    var fallback=rambleParse(text, true) || ('Couldn’t reach the cloud agent ('+err.message+'). Sign in, or add a free Gemini key in Settings. You can quit Ollama — the phone never used it.');
+    var fallback=rambleParse(text, true) || personableFallback(text, err.message);
     state.chatLog[state.chatLog.length-1]={role:'assistant', text:fallback};
     saveState(); refreshAll();
   });
+}
+
+function looksLikeDirectScheduleTalk(text){
+  var l=String(text||'').toLowerCase();
+  if(/meeting/.test(l) && (parseAtTime(text) || /\btomorrow\b|\btoday\b/.test(l))) return true;
+  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return true;
+  return false;
+}
+
+function isCannedPlannerSpeak(s){
+  return /what'?s going on the week\??\s*say it however you want/i.test(String(s||''));
+}
+
+function personableFallback(userText, err){
+  if(isSmallTalk(userText)) return smallTalkReply(userText.toLowerCase());
+  return 'I didn’t fully catch that. Want that as a meeting, study time, or something else — and when?';
 }
 
 function geminiKey(){
@@ -1908,20 +2020,76 @@ function plannerContext(){
 }
 
 function plannerSchema(){
-  return 'Return ONLY minified JSON: {"think":string,"reply":string,"ask":null|{"kind":"duration"|"when"|"who"|"where"|"leaveFrom"|"home","topic":string},"actions":[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home"|"remember"|"forget","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]} You are Sara’s scheduling agent at Science Tokyo. '+plannerContext()+'\nRULES: (1) Use think to decide meaning, conflicts, which gap to use, what to protect. (2) Latest line is a turn — corrections update, never duplicate. (3) ASK, do not invent clock times. Missing day/time/duration/who/place → ask, zero add. (4) Place using listed gaps. Classes/dues > hangouts. Online/zoom: type meeting, online true, no commute. (5) Short titles. Times HH:MM 24h. (6) If she asks to plan/prioritize, propose a coherent day using gaps, then emit actions.';
+  return 'Return ONLY minified JSON: {"think":string,"reply":string,"ask":null|{"kind":"duration"|"when"|"who"|"where"|"leaveFrom"|"home"|"aboutWhat","topic":string},"actions":[...same ops as before...]} '.replace('[...same ops as before...]','[{"op":"skip"|"move"|"add"|"update"|"remove"|"regenerate"|"rhythm"|"expense"|"assignment"|"home"|"remember"|"forget","eventTitleMatch"?:string,"day"?:string,"date"?:string,"due"?:string,"start"?:string,"end"?:string,"title"?:string,"type"?:string,"online"?:boolean,"who"?:string,"place"?:string,"cost"?:number,"amount"?:number,"note"?:string,"wake"?:string,"sleep"?:string,"days"?:string[],"recur"?:string,"needsCommute"?:boolean,"hours"?:number,"sessions"?:number,"sessionMins"?:number,"homePlace"?:string}]')+'You are a personable scheduling friend for Sara (Science Tokyo), not a form. reply must sound like a text: contractions, one clear question if anything is missing. NEVER say “What’s going on the week? Say it however you want.” Hi/hello → greet, mention today if there are events, ask what’s up. Meeting + time, unknown purpose → still remember the time, ask what it’s for, title like Meeting: Yap or Study for quiz. Quiz/exam rambles → study blocks + due, NEVER a title like “Quiz Is Needed About Work”. '+plannerContext()+'\nRULES: (1) think first. (2) Corrections update. (3) Ask, don’t invent times. (4) Place in listed gaps. (5) Online: meeting, no commute.';
 }
 
 function weekDigest(){
   return (state.generated||[]).map(function(e){ return (e.date||e.day)+' '+e.start+'-'+e.end+' '+e.title+(e.skipped?' skipped':''); }).join('; ');
 }
 
-function applyPlannerJSON(textOut){
-  var clean=String(textOut||'').replace(/```json|```/g,'').trim();
+function geminiModelList(){
+  var prefer=(state.settings.geminiModel||'').trim();
+  var list=['gemini-2.5-flash','gemini-2.0-flash','gemini-flash-latest'];
+  if(prefer) list=[prefer].concat(list.filter(function(m){ return m!==prefer; }));
+  return list;
+}
+
+function geminiContentsFromLog(){
+  var raw=[];
+  (state.chatLog||[]).slice(-16).forEach(function(m){
+    if(isThinkMsg(m) || !m.text) return;
+    raw.push({role:m.role==='user'?'user':'model', parts:[{text:m.text}]});
+  });
+  var out=[];
+  raw.forEach(function(c){
+    if(out.length && out[out.length-1].role===c.role){
+      out[out.length-1].parts[0].text+='\n'+c.parts[0].text;
+    } else out.push(c);
+  });
+  if(out.length && out[0].role==='model'){
+    out.unshift({role:'user', parts:[{text:'Hi.'}]});
+  }
+  if(!out.length) out.push({role:'user', parts:[{text:'Hi.'}]});
+  return out;
+}
+
+function geminiGenerate(body, models){
+  var key=geminiKey();
+  models=models||geminiModelList();
+  var attempt=function(i){
+    if(i>=models.length) return Promise.reject(new Error('Gemini models failed. Settings → paste a free AI Studio key (AIza…).'));
+    return fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(models[i])+':generateContent?key='+encodeURIComponent(key), {
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      if(r.status===404 || r.status===429) return attempt(i+1);
+      if(!r.ok) return r.text().then(function(t){
+        if(r.status===403 || r.status===400){
+          if(/not found|NOT_FOUND|model/i.test(t) && i+1<models.length) return attempt(i+1);
+          throw new Error('Gemini refused the key. Settings → aistudio.google.com/apikey and paste AIza…');
+        }
+        throw new Error('Gemini HTTP '+r.status+' '+t.slice(0,140));
+      });
+      return r.json();
+    });
+  };
+  return attempt(0).then(function(data){
+    var parts=((((data.candidates||[])[0]||{}).content||{}).parts)||[];
+    return parts.map(function(p){ return p.text||''; }).join('').trim();
+  });
+}
+
+function applyPlannerJSON(textOut, spokenReply){
   var parsed;
-  try{ parsed=JSON.parse(clean); }catch(e){
-    var m=clean.match(/\{[\s\S]*\}/);
-    if(!m) return textOut||'Could not parse.';
-    try{ parsed=JSON.parse(m[0]); }catch(e2){ return textOut||'Could not parse.'; }
+  if(textOut && typeof textOut==='object') parsed=textOut;
+  else {
+    var clean=String(textOut||'').replace(/```json|```/g,'').trim();
+    try{ parsed=JSON.parse(clean); }catch(e){
+      var m=clean.match(/\{[\s\S]*\}/);
+      if(!m) return spokenReply||textOut||'Could not parse.';
+      try{ parsed=JSON.parse(m[0]); }catch(e2){ return spokenReply||textOut||'Could not parse.'; }
+    }
   }
   var actions=parsed.actions||[];
   var ask=parsed.ask||null;
@@ -1930,9 +2098,39 @@ function applyPlannerJSON(textOut){
   if(ask && ask.kind){
     state.pendingAsk={kind:ask.kind==='who'?'withWho':ask.kind, topic:ask.topic||'', fromAgent:true, draft:state.pendingAsk&&state.pendingAsk.draft};
   }
-  var reply=String(parsed.reply||'').trim();
+  var reply=String(spokenReply||parsed.reply||'').trim();
   reply=maybeAskAfterAdd(reply, actions, ask);
   return reply||'Done.';
+}
+
+function callGemini(userText){
+  var talkSys=[
+    'You are Weekplan, chatting with Sara like the Gemini app: warm, specific, curious, short paragraphs.',
+    'You know her week and tradeoffs below. Ask follow-ups (what’s the meeting for, how long to study for a quiz).',
+    'Do not dump JSON. Do not say “What’s going on the week? Say it however you want.”',
+    'If she says hi, greet her like a person. If she rambles, reflect what you heard, then one question or a clear plan.',
+    'Never invent a clock time she did not give. Quiz/exam prep is study time, not a block titled “quiz needed work”.',
+    '',
+    plannerContext()
+  ].join('\n');
+  setThinking('Gemini talking');
+  return geminiGenerate({
+    systemInstruction:{parts:[{text:talkSys}]},
+    contents:geminiContentsFromLog(),
+    generationConfig:{temperature:0.8, maxOutputTokens:700, topP:0.95}
+  }).then(function(spoken){
+    if(!spoken) spoken='Hey — tell me a bit more so I can put it on the week.';
+    setThinking('Updating the week');
+    return geminiGenerate({
+      systemInstruction:{parts:[{text:'Extract calendar mutations only. The human already got this reply:\n'+spoken+'\n'+plannerSchema()}]},
+      contents:[{role:'user', parts:[{text:'Sara just said:\n'+userText+'\n\nYour spoken reply was:\n'+spoken+'\n\nJSON only.'}]}],
+      generationConfig:{responseMimeType:'application/json', temperature:0.1, maxOutputTokens:1200}
+    }).then(function(jsonText){
+      return applyPlannerJSON(jsonText, spoken);
+    }).catch(function(){
+      return spoken;
+    });
+  });
 }
 
 function followUpPrompt(ask){
@@ -1942,6 +2140,7 @@ function followUpPrompt(ask){
   if(ask.kind==='who' || ask.kind==='withWho') return 'Who is '+t+' with?';
   if(ask.kind==='where') return 'Where is '+t+'?';
   if(ask.kind==='leaveFrom') return 'Are you leaving from home or from class for '+t+'?';
+  if(ask.kind==='aboutWhat') return 'What’s '+t+' for?';
   if(ask.kind==='home') return 'Where is home / which station?';
   return 'Can you fill in the missing detail for '+t+'?';
 }
@@ -2057,7 +2256,9 @@ function updateOllamaHint(){
   var el=document.getElementById('ollamaHint');
   if(!el) return;
   var target=ollamaBase();
-  var bits=['This tab will call '+target+'.'];
+  var bits=[];
+  if(agentWorkerUrl()) bits.push('Cloud agent: '+agentWorkerUrl());
+  bits.push('Ollama target: '+target+'.');
   if(location.protocol==='https:' && !/^https:/i.test(target)){
     bits.push('GitHub Pages is HTTPS, so the phone browser will block this http URL. Open the Mac’s http:// page on the phone instead, or paste a Tailscale https:// URL.');
   } else if(location.protocol==='http:' && location.hostname!=='localhost' && location.hostname!=='127.0.0.1'){
@@ -2091,20 +2292,60 @@ function ollamaBlockedReason(){
   return 'Could not reach Ollama at '+target+'. On the Mac: quit the menu-bar llama, then run ./mac-ollama.sh so it listens on the Wi‑Fi, not only 127.0.0.1. Keep the Mac awake.';
 }
 
+function agentWorkerUrl(){
+  var fromPage=(window.WEEKPLAN_AGENT_URL||'').trim();
+  var fromSettings=(state.settings.agentWorkerUrl||'').trim();
+  return (fromSettings||fromPage).replace(/\/$/,'');
+}
+
+function callAgentWorker(userText){
+  var url=agentWorkerUrl();
+  var history=[];
+  (state.chatLog||[]).slice(-12).forEach(function(m){
+    if(isThinkMsg(m) || !m.text) return;
+    history.push({role:m.role, text:m.text});
+  });
+  setThinking('Agent');
+  return fetch(url, {
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body: JSON.stringify({
+      message:userText,
+      history:history,
+      snapshot:plannerContext()
+    })
+  }).then(function(r){
+    return r.json().then(function(data){
+      if(!r.ok) throw new Error(data.error||('Worker '+r.status));
+      return applyPlannerJSON(data);
+    });
+  });
+}
+
 function callPlannerLLM(userText){
   var key=(state.settings.apiKey||'').trim();
-  var mode=state.settings.agentBackend||'ollama';
+  var mode=state.settings.agentBackend||'cloud';
   startThinkAnim();
-  if(key.indexOf('sk-ant')===0 && mode!=='ollama') return callClaude(userText);
+  if(key.indexOf('sk-ant')===0 && mode!=='ollama' && mode!=='cloud') return callClaude(userText);
   if(mode==='webllm') return callWebLLM(userText);
+  if((mode==='cloud' || mode==='auto') && agentWorkerUrl()){
+    return callAgentWorker(userText).catch(function(err){
+      if(mode==='cloud') return Promise.reject(err);
+      if(mode==='auto'){
+        if(geminiKey()) return callGemini(userText);
+      }
+      throw err;
+    });
+  }
   if(mode==='gemini'){
     if(geminiKey()) return callGemini(userText);
-    return Promise.reject(new Error('No Gemini key. Pick Ollama, or paste an AI Studio key.'));
+    return Promise.reject(new Error('No Gemini key. Set the Worker URL, or paste an AI Studio key.'));
   }
   var tryOllama=function(){
     return probeOllama().then(function(ok){
       if(ok) return callOllama(userText);
       if(mode==='ollama') return Promise.reject(new Error(ollamaBlockedReason()));
+      if(agentWorkerUrl()) return callAgentWorker(userText);
       if(geminiKey()) return callGemini(userText);
       return callWebLLM(userText);
     });
@@ -2143,7 +2384,7 @@ function callOllama(userText){
   if(!history.length || history[history.length-1].content!==userText){
     history.push({role:'user', content:userText});
   }
-  var reasonMsgs=[{role:'system', content:'You are Sara’s week planner (Science Tokyo). Do not output JSON yet. In 8–15 short lines: what she meant; what is already on the week; conflicts; which listed gaps you would use; what to ask; what to protect (sleep, class, dues). Follow her priorities. Never invent a time that is not in the message or in a gap.\n\n'+plannerContext()}].concat(history);
+  var reasonMsgs=[{role:'system', content:'You are Sara’s week planner. Write like a helpful friend (short, specific). Do not output JSON yet. Notes: what she meant; whether this is a meeting vs study vs outing; what to ask (purpose of a meeting, hours to study for a quiz); which gap. Never invent titles like “needed about work”.\n\n'+plannerContext()}].concat(history);
   setThinking('Looking at the week');
   return ollamaChat(reasonMsgs, {json:false, temperature:0.35, num_predict:450}).then(function(think){
     setThinking('Turning that into the calendar');
@@ -2185,28 +2426,6 @@ function callWebLLM(userText){
     });
   }
   return webllmLoading.then(start);
-}
-
-function callGemini(userText){
-  var key=geminiKey();
-  var prompt='You are Sara’s weekly planning agent (Science Tokyo). Multi-turn. Think, then JSON. Ask follow-ups instead of guessing. Memory+week:\n'+plannerContext()+'\n\nRecent chat:\n'+recentChatBlob()+'\n\n'+plannerSchema();
-  return fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(key), {
-    method:'POST',
-    headers:{'content-type':'application/json'},
-    body: JSON.stringify({
-      contents:[{role:'user', parts:[{text:prompt+'\n\nLatest message:\n'+userText}]}],
-      generationConfig:{responseMimeType:'application/json', maxOutputTokens:1200}
-    })
-  }).then(function(r){
-    if(!r.ok) return r.text().then(function(t){
-      if(r.status===403 || r.status===400) throw new Error('Cloud model refused the key. Settings → paste a free Gemini key from aistudio.google.com/apikey (Ollama is not required).');
-      throw new Error('HTTP '+r.status+' '+t.slice(0,160));
-    });
-    return r.json();
-  }).then(function(data){
-    var textOut=((((data.candidates||[])[0]||{}).content||{}).parts||[]).map(function(p){return p.text||'';}).join('');
-    return applyPlannerJSON(textOut);
-  });
 }
 
 function callClaude(userText){
@@ -2700,14 +2919,20 @@ function updateSyncBanner(){
   var text=document.getElementById('syncBannerText');
   var btn=document.getElementById('gotoFirebase');
   if(!el) return;
-  if(fb.user){ el.hidden=true; return; }
-  el.hidden=false;
-  if(getFbConfig()){
+  if(fb.user){ el.hidden=true; }
+  else if(getFbConfig()){
+    el.hidden=false;
     text.textContent='You are not signed in yet. Tap Sign in and pick the same Google account on Mac and phone.';
     btn.textContent='Sign in';
   } else {
-    text.textContent='Firebase is not loaded yet. Open Settings, or refresh the page on https://saraalmakhmari.github.io/schedule/';
+    el.hidden=false;
+    text.textContent='Firebase is not loaded yet. Open Settings.';
     btn.textContent='Settings';
+  }
+  var host=document.getElementById('hostBanner');
+  if(host){
+    var httpsAway=location.protocol==='https:' && !/localhost|127\.0\.0\.1/i.test(location.hostname);
+    host.hidden=!httpsAway;
   }
 }
 
@@ -2869,7 +3094,9 @@ function fillForms(){
   if(ou) ou.value=state.settings.ollamaUrl||'http://127.0.0.1:11434';
   if(or) or.value=state.settings.ollamaRemoteUrl||'';
   if(om) om.value=state.settings.ollamaModel||'llama3.1:8b';
-  if(ag) ag.value=state.settings.agentBackend||'ollama';
+  if(ag) ag.value=state.settings.agentBackend||'cloud';
+  var wk=document.getElementById('s_worker');
+  if(wk) wk.value=state.settings.agentWorkerUrl||window.WEEKPLAN_AGENT_URL||'';
   var pr=document.getElementById('s_priorities');
   if(pr) pr.value=state.settings.priorities||'';
   document.getElementById('e_date').value=todayISO();
@@ -3023,7 +3250,9 @@ document.getElementById('saveApiKey').addEventListener('click', function(){
   var pr=document.getElementById('s_priorities');
   if(pr) state.settings.priorities=pr.value.trim();
   var ag=document.getElementById('s_agent');
-  if(ag) state.settings.agentBackend=ag.value||'ollama';
+  var wk=document.getElementById('s_worker');
+  if(wk) state.settings.agentWorkerUrl=wk.value.trim();
+  if(ag) state.settings.agentBackend=ag.value||'cloud';
   saveState();
   updateOllamaHint();
 });
@@ -3053,11 +3282,31 @@ document.getElementById('importFile').addEventListener('change', function(e){
   reader.readAsText(file);
 });
 document.getElementById('resetBtn').addEventListener('click', function(){
-  if(confirm('Clear local Weekplan data on this browser?')){
-    localStorage.removeItem(STORE_KEY);
-    state=defaultState();
-    saveState(); initAll();
-  }
+  if(!confirm('Reset this Weekplan account?\n\nThis deletes the week, chat, budget, and preferences here and in the cloud for your signed-in Google user. You will reload and see the setup questions. Your Google login stays. Export a backup first if you need this week.')) return;
+  if(fb.unsub){ try{ fb.unsub(); }catch(e){} fb.unsub=null; }
+  var fresh=defaultState();
+  if(state.settings && state.settings.theme) fresh.settings.theme=state.settings.theme;
+  var finish=function(){
+    try{
+      localStorage.removeItem(STORE_KEY);
+      localStorage.removeItem('weeklyPlannerState_v1');
+    }catch(e){}
+    state=fresh;
+    persistLocal();
+    location.reload();
+  };
+  if(fb.user && window.firebase){
+    setSyncChip('Resetting account…', 'warn');
+    userDoc().set({
+      state: fresh,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      clientId: window.__wpClient,
+      resetAt: Date.now()
+    }).then(finish).catch(function(err){
+      alert('Cloud wipe failed ('+(err.code||err.message)+'). Local data will still reset. Sign in again after reload if the old week comes back.');
+      finish();
+    });
+  } else finish();
 });
 var ONBOARD_STEPS=[
   {id:'intro', title:'How should I run your week?', hint:'A few tradeoffs so the agent does not guess what matters. You can redo this in Settings.'},
@@ -3099,13 +3348,7 @@ function appLooksUsed(){
 
 function shouldOnboard(){
   if(onboard.force) return true;
-  if(state.settings.onboardingDone) return false;
-  if(appLooksUsed()){
-    state.settings.onboardingDone=true;
-    persistLocal();
-    return false;
-  }
-  return true;
+  return !state.settings.tradeoffs;
 }
 
 function composePriorities(t){
@@ -3249,6 +3492,58 @@ document.getElementById('redoOnboard').addEventListener('click', function(){
   switchView('schedule');
   showOnboard(true);
 });
+var setupBtn=document.getElementById('setupTradeoffs');
+if(setupBtn) setupBtn.addEventListener('click', function(){ showOnboard(true); });
+
+function speakText(s){
+  if(!state.settings.speakReplies || !window.speechSynthesis) return;
+  try{
+    window.speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(String(s||'').replace(/[*#]/g,' ').slice(0,500));
+    u.rate=1.02;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+var speakBtn=document.getElementById('speakToggle');
+if(speakBtn){
+  speakBtn.addEventListener('click', function(){
+    state.settings.speakReplies=!state.settings.speakReplies;
+    speakBtn.classList.toggle('on', !!state.settings.speakReplies);
+    saveState();
+  });
+  speakBtn.classList.toggle('on', !!state.settings.speakReplies);
+}
+
+var rec=null;
+var micBtn=document.getElementById('chatMic');
+if(micBtn){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){
+    micBtn.title='Use the keyboard microphone on iPhone, or Chrome on the Mac';
+  }
+  micBtn.addEventListener('click', function(){
+    if(!SR){
+      document.getElementById('chatInput').focus();
+      return;
+    }
+    if(rec){ try{ rec.stop(); }catch(e){} rec=null; micBtn.classList.remove('on'); return; }
+    rec=new SR();
+    rec.lang='en-US';
+    rec.interimResults=false;
+    rec.onresult=function(ev){
+      var said=(ev.results[0]&&ev.results[0][0]&&ev.results[0][0].transcript)||'';
+      rec=null; micBtn.classList.remove('on');
+      if(!said) return;
+      document.getElementById('chatInput').value=said;
+      sendChat();
+    };
+    rec.onerror=function(){ rec=null; micBtn.classList.remove('on'); };
+    rec.onend=function(){ rec=null; micBtn.classList.remove('on'); };
+    micBtn.classList.add('on');
+    rec.start();
+  });
+}
 
 function initAll(){
   var theme=state.settings.theme;

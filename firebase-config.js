@@ -11,3 +11,7 @@ window.WEEKPLAN_FIREBASE = {
   appId: "1:908063280933:web:fa47d200b906dadea014cc",
   measurementId: "G-YKT3KM6YTH"
 };
+
+/* After: npx wrangler deploy  (from /cloudflare) + wrangler secret put GEMINI_API_KEY
+   Paste the https://….workers.dev URL here. The Gemini key stays on Cloudflare, not in this file. */
+window.WEEKPLAN_AGENT_URL = "https://weekplan-agent.weekplan-agent.workers.dev";
