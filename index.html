@@ -164,9 +164,12 @@
   .empty{padding:28px;border:1px dashed var(--border);border-radius:var(--radius);color:var(--text-soft);line-height:1.5;max-width:640px;}
   .todo-list{display:flex;flex-direction:column;gap:8px;max-width:640px;}
   .todo-row{
-    display:grid;grid-template-columns:28px 1fr auto;gap:12px;align-items:start;
+    display:grid;grid-template-columns:26px 28px 1fr auto;gap:10px;align-items:center;
     padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   }
+  .todo-rank{display:flex;flex-direction:column;gap:2px;}
+  .todo-rank button:disabled{opacity:.35;}
+  .todo-pri{font-size:.68rem;color:var(--text-soft);text-transform:uppercase;letter-spacing:.04em;}
   .todo-row.done{opacity:.5;}
   .todo-row.done .ttl{text-decoration:line-through;}
   .todo-row input[type=checkbox]{width:18px;height:18px;margin-top:3px;accent-color:var(--accent-text);}
@@ -314,7 +317,7 @@
       <div class="topbar">
         <div>
           <h1>To-do</h1>
-          <div class="sub" id="todoSub">Today’s scheduled blocks, as a checklist.</div>
+          <div class="sub" id="todoSub">Today’s tasks, due-soon first. Reorder to change priority — fluid blocks on the calendar move with it.</div>
         </div>
       </div>
       <p class="todo-prog" id="todoProg"></p>
@@ -381,7 +384,22 @@
             <div><label>Start</label><input type="time" id="f_start"></div>
             <div><label>End</label><input type="time" id="f_end"></div>
             <div><label>Needs commute?</label><select id="f_needscommute"><option value="0">No</option><option value="1">Yes</option></select></div>
-            <div><label>Repeats</label><select id="f_recur"><option value="weekly">Every week</option><option value="once">This week only</option></select></div>
+            <div><label>Repeats</label>
+              <select id="f_recur">
+                <option value="weekly">Every week</option>
+                <option value="once">This week only</option>
+              </select>
+            </div>
+            <div><label>How long</label>
+              <select id="f_span">
+                <option value="indefinite">Indefinitely</option>
+                <option value="7">7 weeks</option>
+                <option value="8">8 weeks</option>
+                <option value="15">15 weeks (semester)</option>
+                <option value="custom">Custom weeks…</option>
+              </select>
+            </div>
+            <div><label>Custom weeks</label><input type="number" id="f_weeks" min="1" max="52" step="1" placeholder="e.g. 12"></div>
           </div>
           <label>Days</label>
           <div class="days" id="f_days"></div>
@@ -556,6 +574,7 @@ function defaultState(){
     lastEventId:null,
     todoDone:{},
     extraTodos:[],
+    todoOrder:{},
     agentMemory:{ facts:[], people:{} },
     budget:{ income:0, savingsPct:20 }
   };
@@ -575,7 +594,8 @@ function loadState(){
       assignments: parsed.assignments||[],
       agentMemory: Object.assign({facts:[], people:{}}, parsed.agentMemory||{}),
       todoDone: parsed.todoDone||{},
-      extraTodos: parsed.extraTodos||[]
+      extraTodos: parsed.extraTodos||[],
+      todoOrder: parsed.todoOrder||{}
     });
     merged.settings.agentBackend='cloud';
     (merged.generated||[]).forEach(function(e){
@@ -769,6 +789,7 @@ function generateSchedule(weekMon){
     state.fixed.forEach(function(f){
       if(templateDays(f).indexOf(day)===-1) return;
       if(f.recur==='once' && f.onceWeek && f.onceWeek!==weekMon) return;
+      if(!templateOnWeek(f, weekMon)) return;
       if(already(date, f.start, f.title, f.id)) return;
       var s=toMin(f.start), e=toMin(f.end);
       events.push({id:uid(), title:f.title, type:f.type, day:day, date:date, start:f.start, end:f.end, notes:f.notes, sourceId:f.id, recur:f.recur||'weekly'});
@@ -860,7 +881,9 @@ function generateSchedule(weekMon){
     }
   });
 
-  (state.assignments||[]).forEach(function(asg){
+  (state.assignments||[]).slice().sort(function(a,b){
+    return String(a.due||'9999').localeCompare(String(b.due||'9999'));
+  }).forEach(function(asg){
     if(asg.done) return;
     var due=asg.due||'';
     var hours=Math.max(1, +asg.hours||2);
@@ -1007,6 +1030,7 @@ function expandTemplates(date){
   (state.fixed||[]).forEach(function(f){
     if(templateDays(f).indexOf(day)===-1) return;
     if(f.recur==='once' && f.onceWeek && f.onceWeek!==monday) return;
+    if(!templateOnWeek(f, monday)) return;
     out.push({id:'virt-'+f.id+'-'+date, title:f.title, type:f.type, day:day, date:date, start:f.start, end:f.end, notes:f.notes, sourceId:f.id, virtual:true});
     if(f.needsCommute){
       var cm=state.settings.commuteMins||0, s=toMin(f.start), e=toMin(f.end);
@@ -1551,6 +1575,7 @@ function classifyIntent(text){
   if(/\b(skip|cancel)\b/.test(l) || /too tired|i'?m tired|im tired/.test(l)) return {kind:'skip'};
   if(/^move /.test(l) || /move .+ to \d/.test(l)) return {kind:'move'};
   if(looksLikeEdit(l)) return {kind:'edit'};
+  if(looksLikePromoteRecurring(raw)) return {kind:'promote'};
   if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return {kind:'add_flex'};
   if(parseRange(raw)) return {kind:'add_timed'};
   if(parseAtTime(raw) && (/meeting|class|i have|going |go to |dentist|workout|gym|study|office/.test(l) || guessType(raw)!=='other')) return {kind:'add_timed'};
@@ -1581,6 +1606,7 @@ function handleIntent(text){
     saveState();
     return 'Got it — I won’t add that as a block. Tell me the actual ask: clear days, skip something, or put a real event on.';
   }
+  if(intent.kind==='promote') return makeExistingRecurring(text);
   return null;
 }
 
@@ -1596,7 +1622,7 @@ function titleLooksLikeUtterance(title, userText){
 
 function gateActions(actions, userText){
   var intent=classifyIntent(userText);
-  var noAdd={greet:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1};
+  var noAdd={greet:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1, promote:1};
   return (actions||[]).filter(function(a){
     if(!a || !a.op) return false;
     if(a.op==='add'){
@@ -1700,6 +1726,29 @@ function handlePending(text){
     saveState();
     return 'Renamed it to include '+about+'.';
   }
+  if(p.kind==='recurWeeks'){
+    var span=parseRecurSpan(text);
+    if(!span) return 'A number of weeks, “the semester”, indefinitely, or this week only.';
+    applyRecurSpanToDraft(p.draft||{}, span);
+    if(p.draft.flex){
+      state.pendingAsk=null;
+      return placeFlexibleTask(p.draft);
+    }
+    return askOrCommitRecurring(p.draft);
+  }
+  if(p.kind==='classWhen'){
+    var r=parseRange(text);
+    if(r){ p.draft.start=r.start; p.draft.end=r.end; return askOrCommitRecurring(p.draft); }
+    var at=parseAtTime(text);
+    if(at){
+      p.draft.start=at;
+      var ans=parseDurationAnswer(text);
+      if(ans.mins) p.draft.end=toHHMM(toMin(at)+ans.mins);
+      else p.draft.end=toHHMM(toMin(at)+90);
+      return askOrCommitRecurring(p.draft);
+    }
+    return 'Give a start and end — 10 to 11, or 13:00–14:30.';
+  }
   if(p.kind==='duration'){
     if(!p.draft) return null;
     var ans=parseDurationAnswer(text);
@@ -1712,6 +1761,11 @@ function handlePending(text){
     if(ans.mins){
       p.draft.durationMins=ans.mins;
       return continueDraft(p.draft);
+    }
+    var asWeeks=parseRecurWeeks(text);
+    if(asWeeks && (p.draft.recurring || p.draft.recur==='weekly' || p.draft.type==='class')){
+      p.draft.weeks=asWeeks;
+      return askOrCommitRecurring(p.draft);
     }
     return 'Give me a length — 2 hours, 45 min, or until 8pm.';
   }
@@ -1798,13 +1852,183 @@ function handlePending(text){
   return null;
 }
 
-function addFixedFromChat(title, type, days, start, end, commute, recur){
+function looksLikeRecurring(text){
+  var l=String(text||'').toLowerCase();
+  if(/every\s+(mon|tue|tues|wed|thu|thur|fri|sat|sun|week)/.test(l)) return true;
+  if(/\b(weekly|each week|every week|recurring|毎週)\b/.test(l)) return true;
+  if(/\d+\s*(x|times)\s*(a|per)\s*week/.test(l)) return true;
+  if(/(workouts?|classes|labs|shifts|sessions|gym)\s+a\s+week/.test(l)) return true;
+  if(/\b(mon|monday)\b.+\b(wed|wednesday)\b/.test(l) && /class|lecture|lab|i have/.test(l)) return true;
+  return false;
+}
+
+function templateOnWeek(f, weekMon){
+  if(!f) return false;
+  if(f.recur==='once') return !f.onceWeek || f.onceWeek===weekMon;
+  var start=f.startWeek || f.onceWeek || weekMonday(todayISO());
+  if(weekMon<start) return false;
+  if(f.indefinite || f.weeks===-1) return true;
+  var n=+f.weeks;
+  if(!n) return weekMon===start;
+  var last=addDaysISO(start, Math.max(0, n-1)*7);
+  return weekMon<=last;
+}
+
+function parseRecurSpan(text){
+  var l=String(text||'').toLowerCase().trim();
+  if(/this week only|just this week|only this week|not recurring|one[- ]off|once only|^once$/.test(l)) return {once:true};
+  if(/indefinite|indefinitely|forever|ongoing|no end|until (i )?stop|until further|always|open[- ]ended/.test(l)) return {indefinite:true};
+  var m=l.match(/(?:next|for|the next)\s+(\d+)\s*(weeks?|wks?)\b/) || l.match(/(\d+)\s*(weeks?|wks?)\b/);
+  if(m) return {weeks:Math.max(1, Math.min(52, +m[1]))};
+  if(/^(for\s+)?\d{1,2}$/.test(l)){
+    var n=+l.replace(/\D/g,'');
+    if(n>=1 && n<=52) return {weeks:n};
+  }
+  if(/semester|term|学期|前期|後期/.test(l)) return {weeks:15};
+  if(/quarter/.test(l)) return {weeks:8};
+  m=l.match(/(\d+)\s*months?/);
+  if(m) return {weeks:Math.max(1, Math.min(52, +m[1]*4))};
+  if(/^(a|one) month\b/.test(l)) return {weeks:4};
+  return null;
+}
+
+function parseRecurWeeks(text){
+  var s=parseRecurSpan(text);
+  if(!s) return null;
+  if(s.indefinite) return -1;
+  if(s.once) return 1;
+  return s.weeks;
+}
+
+function recurUntilLabel(startWeek, weeks){
+  if(weeks===-1 || weeks==null) return 'indefinitely';
+  var lastMon=addDaysISO(startWeek, Math.max(0, (+weeks||1)-1)*7);
+  return prettyDate(addDaysISO(lastMon, 6));
+}
+
+function addFixedFromChat(title, type, days, start, end, commute, recur, weeks, startWeek){
+  var indefinite=weeks===-1 || weeks==='indefinite';
   var item={
     id:uid(), title:title, type:type||'other', days:days, start:start, end:end,
-    needsCommute:!!commute, recur:recur||'weekly'
+    needsCommute:!!commute, recur:recur||'weekly',
+    startWeek: startWeek || weekMonday(state.selectedDate||todayISO()),
+    weeks: recur==='once' ? 1 : (indefinite ? -1 : (weeks!=null ? +weeks : null)),
+    indefinite: recur!=='once' && indefinite
   };
-  if(item.recur==='once') item.onceWeek=weekMonday(state.selectedDate);
+  if(item.recur==='once') item.onceWeek=item.startWeek;
   state.fixed.push(item);
+  return item;
+}
+
+function recurAskLine(title){
+  return 'How long should "'+title+'" keep repeating — a number of weeks (like 7), the semester, or indefinitely? I won’t assume.';
+}
+
+function applyRecurSpanToDraft(draft, span){
+  if(!span) return draft;
+  if(span.once){ draft.once=true; draft.indefinite=false; draft.weeks=1; }
+  else if(span.indefinite){ draft.indefinite=true; draft.weeks=-1; draft.once=false; }
+  else { draft.indefinite=false; draft.weeks=span.weeks; draft.once=false; }
+  return draft;
+}
+
+function looksLikePromoteRecurring(text){
+  var l=String(text||'').toLowerCase();
+  if(/not recurd|don'?t make|do not make|isn'?t recurd/.test(l)) return false;
+  if(/for the next \d+\s*weeks?|indefinitely|every week|weekly|recurring|repeat/.test(l) &&
+     /actually|make (it|that|this)|should (be|repeat)|turn .+ into|from now|going forward|is recurd|recur|repeat (this|that|it)/.test(l)) return true;
+  if(/\b(actually|make).{0,40}(recur|repeat|weekly|every week)/.test(l)) return true;
+  return false;
+}
+
+function eventToRecurDraft(ev){
+  return {
+    title:ev.title,
+    type:ev.type&&ev.type!=='commute'&&ev.type!=='buffer'?ev.type:'class',
+    days:[dayNameOf(ev.date||state.selectedDate)],
+    start:ev.start,
+    end:ev.end,
+    commute:ev.type==='class'||ev.type==='work',
+    startWeek: weekMonday(ev.date||state.selectedDate),
+    sourceId: ev.sourceId,
+    eventId: ev.id
+  };
+}
+
+function commitRecurringDraft(draft){
+  draft=draft||{};
+  if(draft.eventId){
+    state.generated=(state.generated||[]).filter(function(e){ return e.id!==draft.eventId; });
+  }
+  if(draft.sourceId){
+    var f=(state.fixed||[]).filter(function(x){ return x.id===draft.sourceId; })[0];
+    if(f){
+      f.startWeek=draft.startWeek||weekMonday(state.selectedDate);
+      f.days=draft.days&&draft.days.length?draft.days:f.days;
+      if(draft.start) f.start=draft.start;
+      if(draft.end) f.end=draft.end;
+      if(draft.once){ f.recur='once'; f.onceWeek=f.startWeek; f.weeks=1; f.indefinite=false; }
+      else if(draft.indefinite || draft.weeks===-1){ f.recur='weekly'; f.indefinite=true; f.weeks=-1; }
+      else { f.recur='weekly'; f.weeks=+draft.weeks; f.indefinite=false; }
+      generateSchedule(weekMonday(state.selectedDate));
+      saveState();
+      return f;
+    }
+  }
+  if(draft.once){
+    var mon=draft.startWeek||weekMonday(state.selectedDate);
+    (draft.days||[]).forEach(function(day){
+      var date=dateForDayName(day, mon);
+      state.generated.push({
+        id:uid(), title:draft.title||'Untitled', type:draft.type||'other',
+        day:day, date:date, start:draft.start, end:draft.end, keep:true
+      });
+    });
+    saveState();
+    return {title:draft.title, once:true, days:draft.days, start:draft.start, end:draft.end};
+  }
+  var item=addFixedFromChat(draft.title, draft.type, draft.days, draft.start, draft.end, draft.commute, 'weekly', draft.indefinite?-1:draft.weeks, draft.startWeek);
+  if(templateOnWeek(item, weekMonday(state.selectedDate))) generateSchedule(weekMonday(state.selectedDate));
+  saveState();
+  return item;
+}
+
+function askOrCommitRecurring(draft){
+  draft=draft||{};
+  draft.days=draft.days && draft.days.length ? draft.days : [dayNameOf(state.selectedDate)];
+  draft.type=draft.type||'class';
+  draft.title=draft.title||'Class';
+  if(draft.once){
+    state.pendingAsk=null;
+    var once=commitRecurringDraft(draft);
+    return 'Kept "'+once.title+'" this week only on '+(once.days||[]).join('/')+' — not recurring.';
+  }
+  if(!draft.indefinite && (draft.weeks==null || draft.weeks==='')){
+    state.pendingAsk={kind:'recurWeeks', draft:draft};
+    saveState();
+    return recurAskLine(draft.title);
+  }
+  if(!draft.start || !draft.end){
+    state.pendingAsk={kind:'classWhen', draft:draft};
+    saveState();
+    return 'What time is "'+draft.title+'"? Like 10 to 11.';
+  }
+  state.pendingAsk=null;
+  var item=commitRecurringDraft(draft);
+  if(item.once) return 'Kept "'+item.title+'" this week only.';
+  if(item.indefinite || item.weeks===-1){
+    return 'Pinned "'+item.title+'" every '+templateDays(item).join('/')+' '+fmt12(item.start)+'–'+fmt12(item.end)+', indefinitely — say when to stop.';
+  }
+  return 'Pinned "'+item.title+'" every '+templateDays(item).join('/')+' '+fmt12(item.start)+'–'+fmt12(item.end)+' for '+item.weeks+' weeks (through '+recurUntilLabel(item.startWeek, item.weeks)+').';
+}
+
+function makeExistingRecurring(text){
+  var ev=findEvent(text, state.selectedDate) || lastTouchedEvent();
+  if(!ev) return 'Which task on this week? Name it as it appears on the calendar.';
+  var draft=eventToRecurDraft(ev);
+  var span=parseRecurSpan(text);
+  if(span) applyRecurSpanToDraft(draft, span);
+  return askOrCommitRecurring(draft);
 }
 
 function cleanTitle(text){
@@ -1938,7 +2162,6 @@ function localParse(text, allowSchedule){
 
   days=parseDayTokens(text);
   range=parseRange(text);
-  var recurring=/every|each week|weekly|recurring|毎週/.test(lower);
   var commute=/commute|通学|通勤/.test(lower);
   var type=inferBlockType(text, guessType(text));
 
@@ -1964,11 +2187,27 @@ function localParse(text, allowSchedule){
     if(/due/.test(lower) && classDays.length>1) classDays=classDays.slice(0,-1);
     if(!classDays.length) classDays=days.length?days:[dayNameOf(state.selectedDate)];
     var blockType=type;
-    if(blockType==='other' && (recurring || classDays.length>1 || /i have/.test(lower))) blockType='class';
-    addFixedFromChat(title, blockType, classDays.length?classDays:days, range.start, range.end, commute, recurring||classDays.length>1?'weekly':'once');
-    generateSchedule(weekMonday(state.selectedDate));
-    var classNote='Added "'+title+'" '+(classDays.join('/')||days.join('/'))+' '+fmt12(range.start)+'–'+fmt12(range.end)+(recurring||(classDays.length>1)?' (weekly)':'')+'.';
-    return dueNote?classNote+'\n'+dueNote+'\n'+weekBriefing():classNote+'\n'+dayBriefing(dateForDayName(classDays[0], weekMonday(state.selectedDate)));
+    if(blockType==='other' && (looksLikeRecurring(text) || /i have/.test(lower))) blockType='class';
+    var draft={
+      title:title, type:blockType, days:classDays.length?classDays:days,
+      start:range.start, end:range.end, commute:commute
+    };
+    if(looksLikeRecurring(text)){
+      var spanR=parseRecurSpan(text);
+      if(spanR) applyRecurSpanToDraft(draft, spanR);
+      var recNote=askOrCommitRecurring(draft);
+      return dueNote?recNote+'\n'+dueNote:recNote;
+    }
+    (draft.days||[dayNameOf(state.selectedDate)]).forEach(function(day){
+      var date=dateForDayName(day, weekMonday(state.selectedDate));
+      state.generated.push({
+        id:uid(), title:title, type:blockType, day:day, date:date,
+        start:range.start, end:range.end, keep:true
+      });
+    });
+    saveState();
+    var classNote='Added "'+title+'" '+(draft.days.join('/')||'')+' '+fmt12(range.start)+'–'+fmt12(range.end)+' this week only. Say if it should repeat.';
+    return dueNote?classNote+'\n'+dueNote+'\n'+weekBriefing():classNote+'\n'+dayBriefing(dateForDayName(draft.days[0], weekMonday(state.selectedDate)));
   }
   if(dueNote) return dueNote;
 
@@ -2022,6 +2261,11 @@ function localParse(text, allowSchedule){
     var n=nFlex || (days.length?Math.max(1,days.length):1);
     var t=type==='other'||type==='commute' ? (n>1?'other':'outing') : type;
     if(!titleFlex || /^(plan|untitled|other)$/i.test(titleFlex)) titleFlex=TYPE_LABEL[t]||'Plan';
+    if(looksLikeRecurring(text) && !parseRecurSpan(text)){
+      state.pendingAsk={kind:'recurWeeks', draft:{title:titleFlex, type:t, n:n, session:sessFlex, days:days, place:factsF.place, ramble:text, flex:true}};
+      saveState();
+      return recurAskLine(titleFlex);
+    }
     if(!sessFlex){
       state.pendingAsk={kind:'flexDuration', opts:{title:titleFlex, type:t, n:n, days:days, place:factsF.place, ramble:text}};
       saveState();
@@ -2085,12 +2329,25 @@ function rambleParse(text, allowSchedule){
   return localParse(text, allowSchedule);
 }
 
+function eventsInViewedWeek(){
+  var mon=weekMonday(state.selectedDate||todayISO());
+  var list=[];
+  for(var i=0;i<7;i++){
+    eventsOn(addDaysISO(mon,i)).forEach(function(e){
+      if(!e.skipped && e.type!=='buffer' && e.type!=='commute') list.push(e);
+    });
+  }
+  return list;
+}
+
 function findEvent(text, date){
   var lower=text.toLowerCase();
+  var viewed=eventsInViewedWeek();
   var pool=(state.generated||[]).filter(function(e){ return !e.skipped; });
-  var todayFirst=pool.filter(function(e){ return e.date===date; }).concat(pool);
+  var todayFirst=viewed.filter(function(e){ return e.date===date; }).concat(viewed).concat(pool);
   var best=null, bestScore=0;
   todayFirst.forEach(function(e){
+    if(!e || !e.title) return;
     var words=e.title.toLowerCase().split(/\s+/);
     var score=words.filter(function(w){ return w.length>2 && lower.indexOf(w)!==-1; }).length;
     if(e.type && lower.indexOf(e.type)!==-1) score+=2;
@@ -2174,6 +2431,7 @@ function sendChat(){
 
 function looksLikeDirectScheduleTalk(text){
   var l=String(text||'').toLowerCase();
+  if(looksLikePromoteRecurring(text) || looksLikeRecurring(text)) return true;
   if(/meeting/.test(l) && (parseAtTime(text) || /\btomorrow\b|\btoday\b/.test(l))) return true;
   if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return true;
   return false;
@@ -2235,6 +2493,9 @@ function applyPlannerJSON(textOut, spokenReply, userText){
     return handleIntent(userText)||clearNamedDays(daysToClearFromText(userText));
   }
   applyActions(actions);
+  if(state.pendingAsk && state.pendingAsk.kind==='recurWeeks' && state.pendingAsk.draft){
+    return recurAskLine(state.pendingAsk.draft.title);
+  }
   if(ask && ask.kind && classifyIntent(userText||'').kind!=='correct' && classifyIntent(userText||'').kind!=='clear' && classifyIntent(userText||'').kind!=='question'){
     state.pendingAsk={kind:ask.kind==='who'?'withWho':ask.kind, topic:ask.topic||'', fromAgent:true, draft:state.pendingAsk&&state.pendingAsk.draft};
   }
@@ -2467,12 +2728,23 @@ function applyActions(actions){
         if(a.hours && !a.sessions && !a.sessionMins){ n=1; sess=Math.round((+a.hours)*60); }
         placeFlexibleTask({title:a.title||'Plan', type:a.type||'other', n:n, session:sess, days:a.days||(a.day?[a.day]:[]), place:a.note});
       } else if(a.start && a.end && (a.days||a.day||a.date)){
-        if(a.recur==='weekly' || (a.days&&a.days.length>1)){
-          addFixedFromChat(a.title||'Untitled', a.type||'other', a.days||[a.day||dayNameOf(a.date||todayISO())], a.start, a.end, a.needsCommute, 'weekly');
-          generateSchedule(weekMonday(state.selectedDate));
+        var daysA=a.days||(a.day?[a.day]:[dayNameOf(a.date||state.selectedDate)]);
+        var wantsWeekly=a.recur==='weekly' || a.indefinite || a.weeks;
+        if(wantsWeekly){
+          var draftA={
+            title:a.title||'Untitled', type:a.type||'other', days:daysA,
+            start:a.start, end:a.end, commute:!!a.needsCommute
+          };
+          if(a.indefinite || a.weeks===-1){ draftA.indefinite=true; draftA.weeks=-1; }
+          else if(a.weeks) draftA.weeks=+a.weeks;
+          else if(a.recur==='once') draftA.once=true;
+          var recMsg=askOrCommitRecurring(draftA);
+          if(recMsg){ /* pendingAsk may be set */ }
         } else {
-          var date=a.date || dateForDayName(a.day||dayNameOf(state.selectedDate), weekMonday(state.selectedDate));
-          state.generated.push({id:uid(), title:a.title||'Untitled', type:a.type||'other', day:dayNameOf(date), date:date, start:a.start, end:a.end, cost:a.cost, keep:true});
+          daysA.forEach(function(dayA){
+            var date=a.date && daysA.length===1 ? a.date : dateForDayName(dayA, weekMonday(state.selectedDate));
+            state.generated.push({id:uid(), title:a.title||'Untitled', type:a.type||'other', day:dayNameOf(date), date:date, start:a.start, end:a.end, cost:a.cost, keep:true});
+          });
         }
       }
     }
@@ -2494,25 +2766,179 @@ function todoKey(e){
   return 'ev:'+(e.id || ((e.date||'')+'|'+(e.start||'')+'|'+(e.title||'')));
 }
 
+function isoDaysUntil(iso){
+  if(!iso) return 99;
+  try{
+    var a=parseISO(todayISO()), b=parseISO(iso);
+    return Math.round((b-a)/86400000);
+  }catch(err){ return 99; }
+}
+
+function nearestDueForTitle(title){
+  var t=String(title||'').toLowerCase();
+  var best=null, bestDays=999;
+  (state.assignments||[]).forEach(function(a){
+    if(a.done || !a.due) return;
+    var at=String(a.title||'').toLowerCase();
+    if(!at) return;
+    var hit=t.indexOf(at)!==-1 || at.indexOf(t)!==-1;
+    if(!hit){
+      hit=at.split(/\s+/).filter(function(w){ return w.length>3; }).some(function(w){ return t.indexOf(w)!==-1; });
+    }
+    if(!hit) return;
+    var d=isoDaysUntil(a.due);
+    if(d<bestDays){ bestDays=d; best=a; }
+  });
+  return best;
+}
+
+function guessedTodoScore(item){
+  var score=0;
+  var due=nearestDueForTitle(item.title);
+  if(due){
+    var d=isoDaysUntil(due.due);
+    if(d<=0) score+=10000;
+    else if(d===1) score+=8000;
+    else score+=Math.max(200, 4500-d*160);
+    item.dueHint=due.due;
+  }
+  if(item.type==='class'||item.type==='meeting'||item.type==='work') score+=500;
+  if(item.type==='study') score+=420;
+  if(item.type==='workout'||item.type==='mealprep') score+=180;
+  if(item.type==='outing'||item.type==='hangout') score+=80;
+  if(item.type==='commute'||item.type==='buffer') score+=15;
+  if(item.startMin!=null) score -= item.startMin/80;
+  return score;
+}
+
+function priorityLabel(item, index, total){
+  if(item.dueHint && isoDaysUntil(item.dueHint)<=1) return 'Due soon';
+  if(index===0) return 'Highest';
+  if(index < Math.ceil(total/3)) return 'High';
+  if(index < Math.ceil(total*2/3)) return 'Medium';
+  return 'Lower';
+}
+
+function sortTodoItems(items, date){
+  if(!state.todoOrder) state.todoOrder={};
+  var order=state.todoOrder[date]||[];
+  var rank={};
+  order.forEach(function(k,i){ rank[k]=i; });
+  items.forEach(function(item){ item.guess=guessedTodoScore(item); });
+  items.sort(function(a,b){
+    var ra=Object.prototype.hasOwnProperty.call(rank,a.key);
+    var rb=Object.prototype.hasOwnProperty.call(rank,b.key);
+    if(ra && rb) return rank[a.key]-rank[b.key];
+    if(ra) return -1;
+    if(rb) return 1;
+    if(b.guess!==a.guess) return b.guess-a.guess;
+    return (a.startMin||0)-(b.startMin||0);
+  });
+  return items;
+}
+
+function persistTodoOrder(date, items){
+  if(!state.todoOrder) state.todoOrder={};
+  state.todoOrder[date]=items.map(function(i){ return i.key; });
+}
+
+function isPinnedType(t){
+  return t==='class'||t==='work'||t==='meeting'||t==='commute'||t==='buffer';
+}
+function isFluidType(t){
+  return t==='study'||t==='mealprep'||t==='workout'||t==='outing'||t==='hangout'||t==='other';
+}
+
+function reflowFluidByTodoOrder(date, items){
+  date=date||todayISO();
+  items=items||todaysTodoItems();
+  var fluid=[];
+  items.forEach(function(item){
+    if(item.done || item.extra) return;
+    var e=item.event;
+    if(!e || e.virtual || e.skipped || !e.start || !e.end) return;
+    if(!isFluidType(e.type)) return;
+    fluid.push(e);
+  });
+  if(!fluid.length) return false;
+  var wake=toMin(state.settings.wake)||6*60;
+  var sleep=toMin(state.settings.sleep)||23*60;
+  if(sleep<=wake) sleep+=1440;
+  var busy=[];
+  eventsOn(date).forEach(function(e){
+    if(e.skipped || !e.start || !e.end) return;
+    if(fluid.indexOf(e)!==-1) return;
+    if(isPinnedType(e.type) || !isFluidType(e.type)) busy.push([toMin(e.start), toMin(e.end)]);
+  });
+  var gaps=freeFromBusy(busy, wake, sleep);
+  fluid.forEach(function(e){
+    var dur=Math.max(15, toMin(e.end)-toMin(e.start));
+    var slot=takeSlot(gaps, dur, null);
+    if(slot){
+      e.start=toHHMM(slot[0]);
+      e.end=toHHMM(slot[1]);
+      e.keep=true;
+    }
+  });
+  return true;
+}
+
+function moveTodo(key, dir){
+  var date=todayISO();
+  var items=todaysTodoItems();
+  var i=-1;
+  for(var n=0;n<items.length;n++){ if(items[n].key===key) i=n; }
+  var j=i+dir;
+  if(i<0 || j<0 || j>=items.length) return;
+  var tmp=items[i]; items[i]=items[j]; items[j]=tmp;
+  persistTodoOrder(date, items);
+  reflowFluidByTodoOrder(date, items);
+  saveState();
+  renderTodos();
+  renderCalendar();
+}
+
 function todaysTodoItems(){
   if(!state.todoDone) state.todoDone={};
   if(!state.extraTodos) state.extraTodos=[];
   var date=todayISO();
+  var seen={};
   var items=eventsOn(date).filter(function(e){ return !e.skipped; }).map(function(e){
     var meta=[];
     if(TYPE_LABEL[e.type]) meta.push(TYPE_LABEL[e.type]);
     if(e.who) meta.push(e.who);
     if(e.place) meta.push(e.place);
     if(e.online) meta.push('online');
+    seen[(e.title||'').toLowerCase()]=true;
     return {
       key: todoKey(e),
       title: e.title,
       when: (e.start && e.end) ? (fmt12(e.start)+'–'+fmt12(e.end)) : '',
       meta: meta.join(' · '),
       type: e.type,
+      startMin: e.start?toMin(e.start):null,
       done: !!state.todoDone[todoKey(e)],
-      extra: false
+      extra: false,
+      event: e
     };
+  });
+  (state.assignments||[]).forEach(function(a){
+    if(a.done || !a.due || a.due>date) return;
+    var t=(a.title||'').toLowerCase();
+    if(seen[t]) return;
+    var already=items.some(function(it){ return (it.title||'').toLowerCase().indexOf(t)!==-1; });
+    if(already) return;
+    items.push({
+      key:'asg:'+a.id,
+      title:a.title,
+      when:'Due '+prettyDate(a.due),
+      meta:'Assignment',
+      type:'study',
+      startMin:null,
+      done:false,
+      extra:false,
+      dueHint:a.due
+    });
   });
   state.extraTodos.filter(function(t){ return t.date===date && !t.removed; }).forEach(function(t){
     items.push({
@@ -2521,12 +2947,13 @@ function todaysTodoItems(){
       when:'',
       meta:'Extra',
       type:'other',
+      startMin:null,
       done:!!t.done,
       extra:true,
       extraId:t.id
     });
   });
-  return items;
+  return sortTodoItems(items, date);
 }
 
 function renderTodos(){
@@ -2535,26 +2962,31 @@ function renderTodos(){
   var prog=document.getElementById('todoProg');
   if(!mount) return;
   var date=todayISO();
-  if(sub) sub.textContent=prettyDate(date)+' · pulled from today’s schedule';
+  if(sub) sub.textContent=prettyDate(date)+' · due-soon first · arrows change priority and move fluid blocks';
   var items=todaysTodoItems();
   var done=items.filter(function(i){ return i.done; }).length;
   if(prog) prog.textContent=items.length ? (done+' of '+items.length+' done') : 'Nothing on the calendar for today yet.';
   if(!items.length){
-    mount.innerHTML='<div class="empty">Add classes and plans on Schedule (or in chat). They show up here as today’s checklist.</div>';
+    mount.innerHTML='<div class="empty">Add classes and plans on Schedule (or in chat). They show up here as today’s checklist. Reorder to change priority.</div>';
     return;
   }
   mount.innerHTML='<div class="todo-list"></div>';
   var wrap=mount.querySelector('.todo-list');
-  items.forEach(function(item){
+  items.forEach(function(item, idx){
     var row=el('div','todo-row'+(item.done?' done':''),'');
-    row.innerHTML='<input type="checkbox"><div><div class="ttl"></div><div class="meta"></div></div><div class="when"></div>';
+    row.innerHTML='<div class="todo-rank"><button type="button" class="todo-up" aria-label="Higher priority">▲</button><button type="button" class="todo-down" aria-label="Lower priority">▼</button></div><input type="checkbox"><div><div class="ttl"></div><div class="meta"></div><div class="todo-pri"></div></div><div class="when"></div>';
     var cb=row.querySelector('input');
     cb.checked=item.done;
     row.querySelector('.ttl').textContent=item.title;
     row.querySelector('.ttl').style.borderLeft='3px solid '+(TYPE_COLOR[item.type]||'#888');
     row.querySelector('.ttl').style.paddingLeft='8px';
     row.querySelector('.meta').textContent=item.meta;
+    row.querySelector('.todo-pri').textContent=priorityLabel(item, idx, items.length);
     row.querySelector('.when').textContent=item.when;
+    row.querySelector('.todo-up').disabled=idx===0;
+    row.querySelector('.todo-down').disabled=idx===items.length-1;
+    row.querySelector('.todo-up').addEventListener('click', function(){ moveTodo(item.key, -1); });
+    row.querySelector('.todo-down').addEventListener('click', function(){ moveTodo(item.key, 1); });
     cb.addEventListener('change', function(){
       if(item.extra){
         var t=(state.extraTodos||[]).filter(function(x){ return x.id===item.extraId; })[0];
@@ -2761,7 +3193,9 @@ function renderFixedList(){
   document.getElementById('fixedCount').textContent='('+state.fixed.length+')';
   elist.innerHTML=state.fixed.map(function(f){
     return '<div class="row-item"><span><span class="swatch" style="background:'+TYPE_COLOR[f.type]+'"></span>'+escapeHtml(f.title)+
-      ' <span class="meta">'+templateDays(f).join('/')+' '+fmt12(f.start)+'–'+fmt12(f.end)+(f.recur==='weekly'?' · weekly':'')+(f.needsCommute?' · commute':'')+'</span></span>'+
+      ' <span class="meta">'+templateDays(f).join('/')+' '+fmt12(f.start)+'–'+fmt12(f.end)+
+      (f.recur==='once'?' · this week':(f.indefinite||f.weeks===-1?' · indefinitely':(f.weeks?' · '+f.weeks+'w':' · weekly')))+
+      (f.needsCommute?' · commute':'')+'</span></span>'+
       '<button class="del" data-id="'+f.id+'" type="button">Remove</button></div>';
   }).join('') || '<p class="sub">Add classes and shifts, or tell chat.</p>';
   elist.querySelectorAll('.del').forEach(function(b){
@@ -3010,7 +3444,8 @@ function applyRemoteDoc(doc){
       assignments: remote.state.assignments||[],
       agentMemory: Object.assign({facts:[], people:{}}, (remote.state.agentMemory||{})),
       todoDone: remote.state.todoDone||{},
-      extraTodos: remote.state.extraTodos||[]
+      extraTodos: remote.state.extraTodos||[],
+      todoOrder: remote.state.todoOrder||{}
     });
   pruneGenerated();
   persistLocal();
@@ -3205,12 +3640,21 @@ document.getElementById('addFixed').addEventListener('click', function(){
   var start=document.getElementById('f_start').value, end=document.getElementById('f_end').value;
   var days=selectedDays('fday');
   if(!title||!start||!end||!days.length) return;
+  var span=document.getElementById('f_span').value;
+  var weeks=null, indefinite=false;
+  if(span==='indefinite') indefinite=true;
+  else if(span==='custom') weeks=+document.getElementById('f_weeks').value||null;
+  else weeks=+span||null;
+  var recur=document.getElementById('f_recur').value;
   state.fixed.push({
     id:uid(), title:title, type:document.getElementById('f_type').value,
     days:days, start:start, end:end,
     needsCommute:document.getElementById('f_needscommute').value==='1',
-    recur:document.getElementById('f_recur').value,
-    onceWeek: weekMonday(state.selectedDate)
+    recur:recur,
+    startWeek: weekMonday(state.selectedDate),
+    onceWeek: weekMonday(state.selectedDate),
+    weeks: recur==='once' ? 1 : (indefinite ? -1 : weeks),
+    indefinite: recur!=='once' && indefinite
   });
   document.getElementById('f_title').value='';
   saveState(); renderFixedList();

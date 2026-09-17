@@ -1,0 +1,8 @@
+name = "weekplan-agent"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+# After deploy:
+#   npx wrangler secret put GEMINI_API_KEY
+# Then paste the worker URL into firebase-config.js as WEEKPLAN_AGENT_URL
+# and Settings → Agent worker URL.
