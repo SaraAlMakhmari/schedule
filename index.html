@@ -215,7 +215,9 @@
   }
   .chat-input{display:flex;border-top:1px solid var(--border);flex:none;}
   .chat-input textarea{flex:1;border:none;background:none;padding:10px 12px;font-size:.84rem;resize:none;height:88px;color:var(--text);}
-  .chat-input button#chatMic{font-size:.78rem;padding:0 10px;color:var(--text-soft);}
+  .chat-input button#chatMic{
+    font-size:.78rem;padding:0 12px;color:var(--accent-text);font-weight:600;min-width:52px;
+  }
   .chat-input button#chatMic.on{color:var(--brick);font-weight:700;}
   .chat-close.on{color:var(--accent-text);font-weight:600;}
   .chat-suggestions{padding:6px 12px 10px;display:flex;flex-wrap:wrap;gap:6px;flex:none;}
@@ -305,7 +307,8 @@
             <button type="button" data-cal="week" class="on">Week</button>
             <button type="button" data-cal="month">Month</button>
           </div>
-          <button class="btn secondary" id="regenBtn" type="button">Rebuild week</button>
+          <button class="btn secondary" id="undoBtn" type="button">Undo</button>
+          <button class="btn secondary" id="redoBtn" type="button">Redo</button>
         </div>
       </div>
       <div id="calMount"></div>
@@ -426,7 +429,7 @@
           <div id="flexList" style="margin-top:10px;"></div>
         </div>
       </div>
-      <p class="foot-note">Chat can add all of this too. Rebuild week places templates onto the week you are viewing.</p>
+      <p class="foot-note">Chat and the to-do list place things into gaps. Undo/Redo on Schedule if you don’t like a change.</p>
       <div class="card">
         <h3>Firebase sync (free Spark plan)</h3>
         <ol class="steps">
@@ -460,6 +463,9 @@
         </div>
         <label style="margin-top:8px;">How I want the week decided</label>
         <textarea id="s_priorities" rows="4" placeholder="Classes first, then dues, then rest…"></textarea>
+        <label style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--text);">
+          <input type="checkbox" id="s_speak" style="width:auto;"> Read chat replies aloud
+        </label>
         <p class="sub" style="margin-top:8px;" id="agentHint"></p>
         <button class="btn secondary" id="saveApiKey" type="button">Save agent settings</button>
       </div>
@@ -483,8 +489,6 @@
     <div class="chat-head">
       <div>Chat<span class="sub-line" id="agentLine">Same agent on every signed-in device.</span></div>
       <div style="display:flex;gap:6px;align-items:center;">
-        <button class="chat-close" id="setupTradeoffs" type="button">Setup</button>
-        <button class="chat-close" id="speakToggle" type="button" title="Speak replies">Speak</button>
         <button class="chat-close" id="chatClose" type="button" aria-label="Collapse chat">–</button>
       </div>
     </div>
@@ -499,8 +503,8 @@
       <button class="chip" type="button" data-fill="Plan my week">week plan</button>
     </div>
     <div class="chat-input">
-      <button id="chatMic" type="button" title="Dictate">Mic</button>
-      <textarea id="chatInput" placeholder="Type, Mic, or the phone keyboard microphone."></textarea>
+      <button id="chatMic" type="button" title="Talk — dictate into chat" aria-label="Talk, dictate into chat">Talk</button>
+      <textarea id="chatInput" placeholder="Type here, or tap Talk and speak."></textarea>
       <button id="chatSend" type="button">Send</button>
     </div>
   </aside>
@@ -560,7 +564,7 @@ var fb = { app:null, unsub:null, user:null, ready:false };
 
 function defaultState(){
   return {
-    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, agentWorkerUrl:'', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon', speakReplies:true },
+    settings:{ wake:'06:00', sleep:'23:00', getReadyMins:30, commuteMins:20, theme:null, homePlace:'', campusPlace:'Ookayama', sleepHours:8, agentWorkerUrl:'', priorities:'', onboardingDone:false, tradeoffs:null, preferBand:'afternoon', speakReplies:false },
     calView:'week',
     selectedDate: todayISO(),
     fixed:[],
@@ -614,6 +618,61 @@ function persistLocal(){
 function saveState(){
   persistLocal();
   if(!applyingRemote) pushRemote();
+}
+
+var undoStack=[];
+var redoStack=[];
+
+function scheduleSnapshot(){
+  return JSON.parse(JSON.stringify({
+    generated:state.generated||[],
+    flexible:state.flexible||[],
+    fixed:state.fixed||[],
+    extraTodos:state.extraTodos||[],
+    todoOrder:state.todoOrder||{},
+    todoDone:state.todoDone||{},
+    assignments:state.assignments||[],
+    unscheduled:state.unscheduled||[]
+  }));
+}
+function applyScheduleSnapshot(s){
+  if(!s) return;
+  state.generated=s.generated||[];
+  state.flexible=s.flexible||[];
+  state.fixed=s.fixed||[];
+  state.extraTodos=s.extraTodos||[];
+  state.todoOrder=s.todoOrder||{};
+  state.todoDone=s.todoDone||{};
+  state.assignments=s.assignments||[];
+  state.unscheduled=s.unscheduled||[];
+}
+function pushUndo(){
+  undoStack.push(scheduleSnapshot());
+  if(undoStack.length>25) undoStack.shift();
+  redoStack=[];
+  updateUndoButtons();
+}
+function undoSchedule(){
+  if(!undoStack.length) return;
+  redoStack.push(scheduleSnapshot());
+  applyScheduleSnapshot(undoStack.pop());
+  saveState();
+  refreshAll();
+  updateUndoButtons();
+}
+function redoSchedule(){
+  if(!redoStack.length) return;
+  undoStack.push(scheduleSnapshot());
+  applyScheduleSnapshot(redoStack.pop());
+  saveState();
+  refreshAll();
+  updateUndoButtons();
+}
+function updateUndoButtons(){
+  var u=document.getElementById('undoBtn');
+  var r=document.getElementById('redoBtn');
+  if(u) u.disabled=!undoStack.length;
+  if(r) r.disabled=!redoStack.length;
 }
 
 function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
@@ -815,7 +874,7 @@ function generateSchedule(weekMon){
     events.push({
       id:uid(), title:label||task.title, type:task.type, day:day, date:dt,
       start:st, end:en, cost:task.cost, notes:task.notes, sourceId:task.id,
-      ramble:task.ramble, place:task.place, who:task.who
+      ramble:task.ramble, place:task.place, who:task.who, keep:true
     });
     markBusy(dt, st, label||task.title, task.id);
     return true;
@@ -885,6 +944,7 @@ function generateSchedule(weekMon){
     return String(a.due||'9999').localeCompare(String(b.due||'9999'));
   }).forEach(function(asg){
     if(asg.done) return;
+    if((state.generated||[]).some(function(e){ return e.sourceId===asg.id && e.date>=weekMon && e.date<=weekEnd && !e.skipped; })) return;
     var due=asg.due||'';
     var hours=Math.max(1, +asg.hours||2);
     var duration=60;
@@ -1049,7 +1109,7 @@ function expandTemplates(date){
 
 function ensureWeek(weekMon){
   /* Viewing another week must not copy this week's chores into storage.
-     Weekly classes overlay via expandTemplates. Rebuild week is explicit. */
+     Weekly classes overlay via expandTemplates. Fluid tasks reflow from to-do priority. */
 }
 
 function eventDedupeKey(e){
@@ -1184,6 +1244,8 @@ function parseSessionMins(lower){
   if(m) return /min/.test(m[2])?+m[1]:Math.round(+m[1]*60);
   m=lower.match(/(\d+(?:\.\d+)?)\s*(h|hr|hours?)\b/);
   if(m) return Math.round(+m[1]*60);
+  m=lower.match(/(\d+(?:\.\d+)?)(hours?|hrs?|hors)\b/);
+  if(m) return Math.round(+m[1]*60);
   m=lower.match(/(\d+)\s*min/);
   if(m) return +m[1];
   return null;
@@ -1229,6 +1291,8 @@ function shortTitle(text, facts){
   else if(/coffee/.test(l)) noun='Coffee';
   else if(/interview/.test(l)) noun='Interview';
   else if(/office hour/.test(l)) noun='Office hours';
+  else if(/gym|workout|lift|yoga/.test(l)) noun=/gym/.test(l)?'Gym':'Workout';
+  else if(/laundry/.test(l)) noun='Laundry';
   else if(/\bshift\b/.test(l) || (/\bwork\b/.test(l) && !/homework|workout/.test(l))) noun='Work';
   else {
     var t=cleanTitle(text);
@@ -1257,6 +1321,7 @@ function inferBlockType(text, type){
 }
 
 function placeFlexibleTask(opts){
+  pushUndo();
   var title=opts.title||'Plan';
   var type=opts.type||'other';
   var n=Math.max(1, opts.n||1);
@@ -1504,7 +1569,8 @@ function looksLikeFreshRequest(text){
 
 function isJunkTitle(title){
   var t=String(title||'');
-  return /type is not outing/i.test(t) || /clear my schedule/i.test(t) || /^clear (my )?(week|day|schedule)/i.test(t);
+  return /type is not outing/i.test(t) || /clear my schedule/i.test(t) || /^clear (my )?(week|day|schedule)/i.test(t)
+    || /^(help me|have class on|what'?s happening|quiz is need)/i.test(t);
 }
 
 function scrubJunkEvents(){
@@ -1533,6 +1599,7 @@ function daysToClearFromText(text){
 }
 
 function clearNamedDays(dayNames){
+  pushUndo();
   var monday=weekMonday(state.selectedDate);
   var names=dayNames && dayNames.length ? dayNames : DAYS.slice();
   var isoSet={};
@@ -1557,17 +1624,28 @@ function interpretCommand(text){
   return handleIntent(text);
 }
 
+function normalizeChat(text){
+  return String(text||'').replace(/^(hi+|hey+|hello+|yo+|hiya+|ok+|okay+|um+|uh+)\s*[,!.:-]+\s+/i,'').replace(/^(hi+|hey+|hello+|yo+)\s+/i,'').trim() || String(text||'').trim();
+}
+
+function isHelpIntent(text){
+  var l=String(text||'').toLowerCase().trim();
+  return /^(can you |could you |please )?(help( me)?( out)?|what can you do)[\s!?]*$/i.test(l);
+}
+
 function classifyIntent(text){
-  var raw=String(text||'').trim();
+  var raw=normalizeChat(text);
   var l=raw.toLowerCase();
   if(!l) return {kind:'empty'};
-  if(isSmallTalk(raw)) return {kind:'greet'};
-  if(isClearScheduleIntent(raw) || (looksLikeIntentCorrection(raw) && /\bclear\b/.test(l))){
-    return {kind:'clear', days:daysToClearFromText(raw)};
+  if(isSmallTalk(text) || isSmallTalk(raw)) return {kind:'greet'};
+  if(isHelpIntent(raw) || isHelpIntent(text)) return {kind:'help'};
+  if(isClearScheduleIntent(text) || isClearScheduleIntent(raw) || (looksLikeIntentCorrection(raw) && /\bclear\b/.test(l))){
+    return {kind:'clear', days:daysToClearFromText(text)};
   }
-  if(looksLikeIntentCorrection(raw)) return {kind:'correct'};
-  if(/what should i do|plan my (day|week)|what'?s (on )?(today|my day)|brief me|run of show|what do i have|what'?s going on/.test(l)) return {kind:'question'};
+  if(looksLikeIntentCorrection(text) || looksLikeIntentCorrection(raw)) return {kind:'correct'};
+  if(/what should i do|plan my (day|week)|what'?s (on )?(today|my day)|what'?s happening|what is happening|brief me|run of show|what do i have|what'?s going on/.test(l)) return {kind:'question'};
   if(/^(what|when|where|who|how|do i|did i|is there|are there|can you tell|show me)\b/.test(l) && !parseAtTime(raw) && !/add |schedule a |book /.test(l)) return {kind:'question'};
+  if(/can we (clear|wipe|empty)/.test(l)) return {kind:'clear', days:daysToClearFromText(text)};
   if(/overslept|woke up late|slept in/.test(l)) return {kind:'shift'};
   if(/regenerate|rebuild week|redo week/.test(l) && raw.length<50) return {kind:'rebuild'};
   if(/(add expense|spent|log)\s*\$?\d/.test(l) || /income|allowance/.test(l)) return {kind:'expense'};
@@ -1576,17 +1654,30 @@ function classifyIntent(text){
   if(/^move /.test(l) || /move .+ to \d/.test(l)) return {kind:'move'};
   if(looksLikeEdit(l)) return {kind:'edit'};
   if(looksLikePromoteRecurring(raw)) return {kind:'promote'};
-  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return {kind:'add_flex'};
+  if(/\b(class|lecture|lab|seminar)\b/.test(l) && !parseRange(raw) && !parseAtTime(raw) && !/skip|clear|cancel/.test(l)) return {kind:'class_when'};
+  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review|due/.test(l)) return {kind:'add_flex'};
   if(parseRange(raw)) return {kind:'add_timed'};
   if(parseAtTime(raw) && (/meeting|class|i have|going |go to |dentist|workout|gym|study|office/.test(l) || guessType(raw)!=='other')) return {kind:'add_timed'};
-  if(parseCountPerWeek(l) || parseSessionMins(l)) return {kind:'add_flex'};
-  if(/\b(need to study|study for|put .+ on (the )?(week|calendar)|add (a |my )?(gym|laundry|workout|class)|gym twice|laundry this week)\b/.test(l)) return {kind:'add_flex'};
+  if(/\b(gym|laundry|workout|study for|need to study|meal ?prep)\b/.test(l) && (parseCountPerWeek(l) || parseSessionMins(l) || parseDayTokens(raw).length || /this week|today|tomorrow/.test(l))) return {kind:'add_flex'};
+  if(/\b(need to study|study for|put .+ on (the )?(week|calendar)|add (a |my )?(gym|laundry|workout)|gym twice|laundry this week)\b/.test(l)) return {kind:'add_flex'};
   if(/\b(please |can you |could you )?(add|book|put|schedule) (a |the |my )/.test(l)) return {kind:'add_flex'};
   return {kind:'talk'};
 }
 
 function handleIntent(text){
   var intent=classifyIntent(text);
+  if(intent.kind==='greet') return smallTalkReply(String(text||'').toLowerCase());
+  if(intent.kind==='help'){
+    return 'Yeah. Say it like a text — “clear Mon–Wed”, “class Thursday 10 to 11”, “quiz 3 due Friday, 3 hours of study”, “gym Tuesday 5–7”. I figure out if that’s a greeting, a question, or something for the calendar. You don’t need a special phrase.';
+  }
+  if(intent.kind==='class_when'){
+    var days=parseDayTokens(text);
+    var title=shortTitle(text, {type:'class'}) || 'Class';
+    if(/^(Have Class|Class On)$/i.test(title)) title='Class';
+    state.pendingAsk={kind:'classWhen', draft:{title:title, type:'class', days:days.length?days:[dayNameOf(state.selectedDate)]}};
+    saveState();
+    return 'What time is '+title+(days.length?' on '+days.join('/'):'')+'? Like 10 to 11:30 — I need a clock time for a class, not a random gap.';
+  }
   if(intent.kind==='clear'){
     var days=intent.days && intent.days.length ? intent.days : daysToClearFromText(text);
     if(!days.length){
@@ -1622,7 +1713,7 @@ function titleLooksLikeUtterance(title, userText){
 
 function gateActions(actions, userText){
   var intent=classifyIntent(userText);
-  var noAdd={greet:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1, promote:1};
+  var noAdd={greet:1, help:1, question:1, correct:1, clear:1, skip:1, shift:1, rebuild:1, promote:1, class_when:1};
   return (actions||[]).filter(function(a){
     if(!a || !a.op) return false;
     if(a.op==='add'){
@@ -2383,10 +2474,15 @@ function sendChat(){
     saveState(); refreshAll();
     return;
   }
-  if(isSmallTalk(text)){
-    state.chatLog.push({role:'assistant', text:smallTalkReply(text.toLowerCase())});
+  if(isSmallTalk(text) || isHelpIntent(text)){
+    if(state.pendingAsk) state.pendingAsk=null;
+    state.chatLog.push({role:'assistant', text: isHelpIntent(text) ? handleIntent(text) : smallTalkReply(text.toLowerCase())});
     saveState(); refreshAll();
     return;
+  }
+  var kind0=classifyIntent(text).kind;
+  if(state.pendingAsk && (kind0==='greet'||kind0==='help'||kind0==='question'||kind0==='clear'||kind0==='correct')){
+    if(kind0!=='clear') state.pendingAsk=null;
   }
   var commandHit=interpretCommand(text);
   if(commandHit){
@@ -2430,20 +2526,24 @@ function sendChat(){
 }
 
 function looksLikeDirectScheduleTalk(text){
-  var l=String(text||'').toLowerCase();
+  var l=normalizeChat(text).toLowerCase();
   if(looksLikePromoteRecurring(text) || looksLikeRecurring(text)) return true;
+  if(/\b(class|lecture|lab)\b/.test(l) && (parseDayTokens(text).length || parseRange(text) || parseAtTime(text))) return true;
   if(/meeting/.test(l) && (parseAtTime(text) || /\btomorrow\b|\btoday\b/.test(l))) return true;
-  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review/.test(l)) return true;
+  if(/quiz|exam|midterm/.test(l) && /study|need|prep|review|due/.test(l)) return true;
+  if(/\b(gym|laundry|workout)\b/.test(l) && (parseAtTime(text) || parseRange(text) || parseDayTokens(text).length)) return true;
   return false;
 }
 
 function isCannedPlannerSpeak(s){
-  return /what'?s going on the week\??\s*say it however you want/i.test(String(s||''));
+  return /what'?s going on the week|say it however you want/i.test(String(s||''));
 }
 
 function personableFallback(userText, err){
+  var hit=handleIntent(userText);
+  if(hit) return hit;
   if(isSmallTalk(userText)) return smallTalkReply(userText.toLowerCase());
-  return 'I didn’t fully catch that. Want that as a meeting, study time, or something else — and when?';
+  return 'I didn’t catch a calendar change in that. If you want something on the week, name it and a day or time — or ask what’s today.';
 }
 
 function plannerContext(){
@@ -2493,13 +2593,19 @@ function applyPlannerJSON(textOut, spokenReply, userText){
     return handleIntent(userText)||clearNamedDays(daysToClearFromText(userText));
   }
   applyActions(actions);
+  var kind=classifyIntent(userText||'').kind;
   if(state.pendingAsk && state.pendingAsk.kind==='recurWeeks' && state.pendingAsk.draft){
     return recurAskLine(state.pendingAsk.draft.title);
   }
-  if(ask && ask.kind && classifyIntent(userText||'').kind!=='correct' && classifyIntent(userText||'').kind!=='clear' && classifyIntent(userText||'').kind!=='question'){
+  var allowAsk={add_flex:1, add_timed:1, add:1};
+  if(ask && ask.kind && allowAsk[kind]){
     state.pendingAsk={kind:ask.kind==='who'?'withWho':ask.kind, topic:ask.topic||'', fromAgent:true, draft:state.pendingAsk&&state.pendingAsk.draft};
+  } else if(ask && !allowAsk[kind] && (ask.kind==='duration'||ask.kind==='when')){
+    ask=null;
   }
   var reply=String(spokenReply||parsed.reply||'').trim();
+  if(isCannedPlannerSpeak(reply)) reply=personableFallback(userText, reply);
+  if(!allowAsk[kind]) return reply||personableFallback(userText, reply);
   reply=maybeAskAfterAdd(reply, actions, ask);
   return reply||'Done.';
 }
@@ -2648,6 +2754,7 @@ function callPlannerLLM(userText){
 }
 
 function applyActions(actions){
+  if(actions && actions.length) pushUndo();
   actions.forEach(function(a){
     if(a.op==='clear' || a.op==='clearDays' || a.op==='clearWeek'){
       var days=a.days || (a.day?[a.day]:[]) || [];
@@ -2849,12 +2956,47 @@ function isFluidType(t){
   return t==='study'||t==='mealprep'||t==='workout'||t==='outing'||t==='hangout'||t==='other';
 }
 
+function placeTodoOnSchedule(extra){
+  var title=extra.title||'To-do';
+  var date=extra.date||todayISO();
+  var type=guessType(title);
+  if(type==='commute'||type==='buffer') type='other';
+  var range=parseRange(title);
+  var at=parseAtTime(title);
+  var dur=parseSessionMins(String(title).toLowerCase())||60;
+  var start, end;
+  if(range){ start=range.start; end=range.end; }
+  else if(at){ start=at; end=toHHMM(toMin(at)+dur); }
+  else {
+    var wake=toMin(state.settings.wake)||6*60;
+    var sleep=toMin(state.settings.sleep)||23*60;
+    if(sleep<=wake) sleep+=1440;
+    if(date===todayISO()){
+      var now=new Date();
+      var nowMin=now.getHours()*60+now.getMinutes();
+      if(nowMin>wake && nowMin<sleep) wake=nowMin;
+    }
+    var busy=[];
+    eventsOn(date).forEach(function(e){
+      if(e.skipped || !e.start || !e.end) return;
+      busy.push([toMin(e.start), toMin(e.end)]);
+    });
+    var gaps=freeFromBusy(busy, wake, sleep);
+    var slot=takeSlot(gaps, dur, null);
+    if(slot){ start=toHHMM(slot[0]); end=toHHMM(slot[1]); }
+    else { start=toHHMM(Math.min(wake, sleep-dur)); end=toHHMM(toMin(start)+dur); }
+  }
+  var ev=pushKeepEvent(date, start, end, title, type, 'from to-do', {extraTodoId:extra.id});
+  ev.keep=true;
+  return ev.id;
+}
+
 function reflowFluidByTodoOrder(date, items){
   date=date||todayISO();
   items=items||todaysTodoItems();
   var fluid=[];
   items.forEach(function(item){
-    if(item.done || item.extra) return;
+    if(item.done) return;
     var e=item.event;
     if(!e || e.virtual || e.skipped || !e.start || !e.end) return;
     if(!isFluidType(e.type)) return;
@@ -2890,6 +3032,7 @@ function moveTodo(key, dir){
   for(var n=0;n<items.length;n++){ if(items[n].key===key) i=n; }
   var j=i+dir;
   if(i<0 || j<0 || j>=items.length) return;
+  pushUndo();
   var tmp=items[i]; items[i]=items[j]; items[j]=tmp;
   persistTodoOrder(date, items);
   reflowFluidByTodoOrder(date, items);
@@ -2903,7 +3046,7 @@ function todaysTodoItems(){
   if(!state.extraTodos) state.extraTodos=[];
   var date=todayISO();
   var seen={};
-  var items=eventsOn(date).filter(function(e){ return !e.skipped; }).map(function(e){
+  var items=eventsOn(date).filter(function(e){ return !e.skipped && !e.extraTodoId; }).map(function(e){
     var meta=[];
     if(TYPE_LABEL[e.type]) meta.push(TYPE_LABEL[e.type]);
     if(e.who) meta.push(e.who);
@@ -2941,16 +3084,18 @@ function todaysTodoItems(){
     });
   });
   state.extraTodos.filter(function(t){ return t.date===date && !t.removed; }).forEach(function(t){
+    var ev=(state.generated||[]).filter(function(e){ return e.id===t.eventId; })[0];
     items.push({
       key:'x:'+t.id,
       title:t.title,
-      when:'',
-      meta:'Extra',
-      type:'other',
-      startMin:null,
+      when: ev && ev.start && ev.end ? (fmt12(ev.start)+'–'+fmt12(ev.end)) : '',
+      meta: ev ? ((TYPE_LABEL[ev.type]||'To-do')+' · on schedule') : 'To-do',
+      type: ev&&ev.type || guessType(t.title),
+      startMin: ev&&ev.start ? toMin(ev.start) : null,
       done:!!t.done,
       extra:true,
-      extraId:t.id
+      extraId:t.id,
+      event:ev
     });
   });
   return sortTodoItems(items, date);
@@ -2988,9 +3133,11 @@ function renderTodos(){
     row.querySelector('.todo-up').addEventListener('click', function(){ moveTodo(item.key, -1); });
     row.querySelector('.todo-down').addEventListener('click', function(){ moveTodo(item.key, 1); });
     cb.addEventListener('change', function(){
+      pushUndo();
       if(item.extra){
         var t=(state.extraTodos||[]).filter(function(x){ return x.id===item.extraId; })[0];
         if(t) t.done=cb.checked;
+        if(item.event){ item.event.skipped=cb.checked; item.event.keep=true; }
       } else {
         if(!state.todoDone) state.todoDone={};
         if(cb.checked) state.todoDone[item.key]=true;
@@ -2998,6 +3145,7 @@ function renderTodos(){
       }
       saveState();
       renderTodos();
+      renderCalendar();
     });
     wrap.appendChild(row);
   });
@@ -3546,6 +3694,8 @@ function fillForms(){
   if(wk) wk.value=state.settings.agentWorkerUrl||window.WEEKPLAN_AGENT_URL||'';
   var pr=document.getElementById('s_priorities');
   if(pr) pr.value=state.settings.priorities||'';
+  var sp=document.getElementById('s_speak');
+  if(sp) sp.checked=!!state.settings.speakReplies;
   document.getElementById('e_date').value=todayISO();
   updateAgentHint();
 }
@@ -3591,9 +3741,8 @@ document.getElementById('nextRange').addEventListener('click', function(){
 document.getElementById('todayBtn').addEventListener('click', function(){
   state.selectedDate=todayISO(); saveState(); renderCalendar();
 });
-document.getElementById('regenBtn').addEventListener('click', function(){
-  generateSchedule(weekMonday(state.selectedDate)); renderCalendar(); renderUnscheduled(); renderTodos();
-});
+document.getElementById('undoBtn').addEventListener('click', undoSchedule);
+document.getElementById('redoBtn').addEventListener('click', redoSchedule);
 document.getElementById('chatClose').addEventListener('click', closeChat);
 document.getElementById('emClose').addEventListener('click', closeEventDetail);
 document.getElementById('eventModal').addEventListener('click', function(e){
@@ -3640,6 +3789,7 @@ document.getElementById('addFixed').addEventListener('click', function(){
   var start=document.getElementById('f_start').value, end=document.getElementById('f_end').value;
   var days=selectedDays('fday');
   if(!title||!start||!end||!days.length) return;
+  pushUndo();
   var span=document.getElementById('f_span').value;
   var weeks=null, indefinite=false;
   if(span==='indefinite') indefinite=true;
@@ -3662,6 +3812,7 @@ document.getElementById('addFixed').addEventListener('click', function(){
 document.getElementById('addFlex').addEventListener('click', function(){
   var title=document.getElementById('x_title').value.trim();
   if(!title) return;
+  pushUndo();
   state.flexible.push({
     id:uid(), title:title, type:document.getElementById('x_type').value,
     hours:+document.getElementById('x_hours').value||1,
@@ -3674,6 +3825,8 @@ document.getElementById('addFlex').addEventListener('click', function(){
   document.getElementById('x_title').value='';
   document.getElementById('x_notes').value='';
   saveState(); renderFlexList();
+  generateSchedule(weekMonday(state.selectedDate));
+  renderCalendar(); renderTodos();
 });
 document.getElementById('saveBudget').addEventListener('click', function(){
   state.budget.income=+document.getElementById('b_income').value||0;
@@ -3698,6 +3851,8 @@ document.getElementById('saveApiKey').addEventListener('click', function(){
   if(pr) state.settings.priorities=pr.value.trim();
   var wk=document.getElementById('s_worker');
   if(wk) state.settings.agentWorkerUrl=wk.value.trim();
+  var sp=document.getElementById('s_speak');
+  if(sp) state.settings.speakReplies=sp.checked;
   state.settings.agentBackend='cloud';
   saveState();
   updateAgentHint();
@@ -3706,11 +3861,18 @@ function addExtraTodo(){
   var input=document.getElementById('todoExtra');
   var title=(input && input.value || '').trim();
   if(!title) return;
+  pushUndo();
   if(!state.extraTodos) state.extraTodos=[];
-  state.extraTodos.push({id:uid(), date:todayISO(), title:title, done:false});
+  var extra={id:uid(), date:todayISO(), title:title, done:false};
+  extra.eventId=placeTodoOnSchedule(extra);
+  state.extraTodos.push(extra);
   input.value='';
+  var date=todayISO();
+  if(!state.todoOrder) state.todoOrder={};
+  if(state.todoOrder[date]) state.todoOrder[date].push('x:'+extra.id);
   saveState();
   renderTodos();
+  renderCalendar();
 }
 document.getElementById('addTodoExtra').addEventListener('click', addExtraTodo);
 document.getElementById('todoExtra').addEventListener('keydown', function(e){
@@ -3949,11 +4111,8 @@ document.getElementById('obNext').addEventListener('click', function(){
   else finishOnboard(false);
 });
 document.getElementById('redoOnboard').addEventListener('click', function(){
-  switchView('schedule');
   showOnboard(true);
 });
-var setupBtn=document.getElementById('setupTradeoffs');
-if(setupBtn) setupBtn.addEventListener('click', function(){ showOnboard(true); });
 
 function speakText(s){
   if(!state.settings.speakReplies || !window.speechSynthesis) return;
@@ -3965,43 +4124,101 @@ function speakText(s){
   }catch(e){}
 }
 
-var speakBtn=document.getElementById('speakToggle');
-if(speakBtn){
-  speakBtn.addEventListener('click', function(){
-    state.settings.speakReplies=!state.settings.speakReplies;
-    speakBtn.classList.toggle('on', !!state.settings.speakReplies);
-    saveState();
-  });
-  speakBtn.classList.toggle('on', !!state.settings.speakReplies);
+var rec=null;
+var micListening=false;
+var micFinal='';
+var micRestarts=0;
+var micBtn=document.getElementById('chatMic');
+
+function speechEngine(){
+  return window.SpeechRecognition || window.webkitSpeechRecognition || null;
 }
 
-var rec=null;
-var micBtn=document.getElementById('chatMic');
-if(micBtn){
-  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){
-    micBtn.title='Use the keyboard microphone on iPhone, or Chrome on the Mac';
+function setMicListening(on, note){
+  micListening=!!on;
+  if(!micBtn) return;
+  micBtn.classList.toggle('on', micListening);
+  micBtn.textContent=micListening?'Listening…':'Talk';
+  micBtn.setAttribute('aria-pressed', micListening?'true':'false');
+  var line=document.getElementById('agentLine');
+  if(line) line.textContent=note || (micListening?'Listening — tap Talk again when you’re done.':'Same agent on every signed-in device.');
+}
+
+function stopMic(sendIfText){
+  micListening=false;
+  if(rec){
+    try{ rec.stop(); }catch(e){}
+    rec=null;
   }
-  micBtn.addEventListener('click', function(){
-    if(!SR){
-      document.getElementById('chatInput').focus();
-      return;
-    }
-    if(rec){ try{ rec.stop(); }catch(e){} rec=null; micBtn.classList.remove('on'); return; }
+  setMicListening(false);
+  var input=document.getElementById('chatInput');
+  if(sendIfText && input && input.value.trim()) sendChat();
+}
+
+function startMicRecognition(){
+  var SR=speechEngine();
+  var input=document.getElementById('chatInput');
+  if(!SR){
+    state.chatLog.push({role:'assistant', text:'This browser can’t dictate. On iPhone, tap the keyboard microphone. On a Mac, Chrome usually works for Talk.'});
+    saveState(); renderChat();
+    if(input) input.focus();
+    return;
+  }
+  micFinal='';
+  function bindAndStart(){
     rec=new SR();
     rec.lang='en-US';
-    rec.interimResults=false;
+    rec.interimResults=true;
+    rec.continuous=true;
     rec.onresult=function(ev){
-      var said=(ev.results[0]&&ev.results[0][0]&&ev.results[0][0].transcript)||'';
-      rec=null; micBtn.classList.remove('on');
-      if(!said) return;
-      document.getElementById('chatInput').value=said;
-      sendChat();
+      micRestarts=0;
+      var interim='';
+      for(var i=0;i<ev.results.length;i++){
+        var t=ev.results[i][0].transcript;
+        if(ev.results[i].isFinal) micFinal+=t+' ';
+        else interim+=t;
+      }
+      if(input) input.value=(micFinal+interim).replace(/\s+/g,' ').trim();
     };
-    rec.onerror=function(){ rec=null; micBtn.classList.remove('on'); };
-    rec.onend=function(){ rec=null; micBtn.classList.remove('on'); };
-    micBtn.classList.add('on');
+    rec.onerror=function(ev){
+      var err=(ev && ev.error)||'';
+      rec=null;
+      if(err==='not-allowed' || err==='service-not-allowed'){
+        state.chatLog.push({role:'assistant', text:'Microphone is blocked for this site. Allow mic in the browser, or use the iPhone keyboard mic.'});
+        saveState(); renderChat();
+      }
+      setMicListening(false);
+    };
+    rec.onend=function(){
+      rec=null;
+      if(micListening){
+        micRestarts++;
+        if(micRestarts>6){ setMicListening(false); return; }
+        try{ bindAndStart(); }catch(e){ setMicListening(false); }
+        return;
+      }
+      setMicListening(false);
+    };
     rec.start();
+    setMicListening(true);
+  }
+  if(navigator.mediaDevices && navigator.mediaDevices.getUserMedia){
+    navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+      if(stream && stream.getTracks) stream.getTracks().forEach(function(t){ t.stop(); });
+      bindAndStart();
+    }).catch(function(){
+      state.chatLog.push({role:'assistant', text:'Couldn’t open the mic. Allow microphone access for this page, then tap Talk again.'});
+      saveState(); renderChat();
+    });
+  } else {
+    bindAndStart();
+  }
+}
+
+if(micBtn){
+  micBtn.addEventListener('click', function(){
+    if(micListening){ stopMic(true); return; }
+    startMicRecognition();
   });
 }
 
@@ -4017,6 +4234,7 @@ function initAll(){
   pruneGenerated();
   persistLocal();
   refreshAll();
+  updateUndoButtons();
   maybeOnboard();
   initFirebase();
 }
