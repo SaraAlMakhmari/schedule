@@ -55,7 +55,11 @@ export default {
       contents.unshift({ role: 'user', parts: [{ text: 'Hi.' }] });
     }
 
-    var models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    var models = [];
+    if (env.GEMINI_MODEL) models.push(String(env.GEMINI_MODEL).trim());
+    ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'].forEach(function (m) {
+      if (models.indexOf(m) === -1) models.push(m);
+    });
     var lastErr = 'no model';
     for (var i = 0; i < models.length; i++) {
       var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + models[i] + ':generateContent?key=' + encodeURIComponent(env.GEMINI_API_KEY);

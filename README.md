@@ -1,41 +1,34 @@
-# Weekplan
+# Cross-device Weekplan agent
 
-Personal week planner + budget. Hosted for free on GitHub Pages.
-Live site: https://saraalmakhmari.github.io/schedule/
+Chat quality is mostly this Worker. Phrase-matching in the page is a backup. After you change `brain.js` or `worker.js`, you must **deploy** or the live site stays dumb.
 
-**GitHub is only for the website files.** Your schedule lives in Firebase (or this browser until you connect it), so Mac and phone stay in sync in about a second — not after a git push.
+Ollama cannot run on an iPhone. The **brain** is `agent/brain.js` (your rules). The **engine** is Gemini Flash, called from a Cloudflare Worker so the API key never sits in GitHub Pages.
 
-## Day to day
+Firestore (already in the app) syncs the week. The Watch later is another client on the same documents.
 
-1. Open the site (or Add to Home Screen on your phone).
-2. Sign in with Google once (after Firebase is connected).
-3. Tell chat your week, for example:
+## 15-minute setup
 
-```
-wake 7am sleep 11pm
-Chem 201 every Mon Wed 10am-11am commute
-Work Tue Thu 4pm-8pm commute
-study 6 hours
-workout 45 min Mon Wed Fri
-meal prep Sunday 2pm chicken rice broccoli
-hangout Saturday 7pm dinner $25
-income 200 save 20%
+1. Get a free Gemini key: https://aistudio.google.com/apikey (Google account, no card).
+2. On a machine with Node (Cursor’s terminal, or any laptop with `npx`):
+
+```bash
+cd cloudflare
+npx wrangler login
+npx wrangler deploy
+npx wrangler secret put GEMINI_API_KEY
 ```
 
-4. Later: `I overslept 30 minutes`, `skip workout today`, `move study to 6pm`, `log $12 coffee`.
+Paste the AI Studio key when asked.
 
-## Connect Firebase (free Spark plan)
+3. Copy the `https://weekplan-agent.<you>.workers.dev` URL into:
+   - `firebase-config.js` → `WEEKPLAN_AGENT_URL`
+   - Settings → Agent worker URL → Save
+   - Brain = **Cloud agent**
 
-1. Firebase console → your project → Project settings → Your apps → Web → copy the config object into `firebase-config.js`.
-2. Authentication → Sign-in method → Google → Enable.
-3. Authentication → Settings → Authorized domains → add `saraalmakhmari.github.io` and `localhost`.
-4. Firestore Database → Create (start in production mode) → paste `firestore.rules`.
-5. Upload the updated files to the `schedule` GitHub repo (the Pages site).
-6. Open the site → Sign in.
+4. Upload `index.html` + `firebase-config.js` like usual (or open the Mac local page). Sign in on phone and laptop.
 
-Until this is filled in, everything still works on one device (saved in the browser).
+5. Edit `agent/brain.js` whenever you want different personality/rules, then `npx wrangler deploy` again from `cloudflare/`.
 
-## Update the live site without git
+Optional: Cloudflare dashboard → Worker → Settings → Variables → `ALLOWED_ORIGINS` = `https://saraalmakhmari.github.io,http://localhost:5500`
 
-GitHub → `saraalmakhmari/schedule` → Add file → Upload files → replace `index.html` (and `firebase-config.js`).
-Pages is already serving `/schedule/`.
+No Firebase Blaze. No Ollama on the phone.

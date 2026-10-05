@@ -4,5 +4,8 @@ compatibility_date = "2025-09-01"
 
 # After deploy:
 #   npx wrangler secret put GEMINI_API_KEY
+# Optional paid bump (a few dollars/month):
+#   npx wrangler secret put GEMINI_MODEL
+#   value: gemini-2.5-pro
 # Then paste the worker URL into firebase-config.js as WEEKPLAN_AGENT_URL
 # and Settings → Agent worker URL.
