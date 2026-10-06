@@ -814,6 +814,8 @@ function retireSourcesFromEvents(evs, weekMon){
     if(ids[a.id]) a.suppressWeek=weekMon;
   });
 }
+
+function generateSchedule(weekMon){
   weekMon = weekMon || weekMonday(state.selectedDate);
   var wake=toMin(state.settings.wake), sleep=toMin(state.settings.sleep);
   if(sleep<=wake) sleep+=1440;

@@ -82,8 +82,8 @@ export default {
       var raw = await res.text();
       if (!res.ok) {
         lastErr = models[i] + ' ' + res.status + ' ' + raw.slice(0, 180);
-        if (res.status === 404 || res.status === 400) continue;
-        return Response.json({ error: lastErr }, { status: 502, headers: headers });
+        if (res.status === 404 || res.status === 400 || res.status === 403 || res.status === 429) continue;
+        continue;
       }
       var data;
       try {
